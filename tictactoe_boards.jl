@@ -351,7 +351,10 @@ is_o_move(board) = Bool(sum(board) % 0x0003)
 
 # ╔═╡ d3a23815-e4ea-45f8-8d2a-ac0fceca49f7
 #option to just make every cell the same color
-colorboard(name, color::AbstractString) = colorboard(name, fill(color, 9))
+colorboard(name, color) = colorboard(name, fill(color, 9))
+
+# ╔═╡ 4d9dc884-b567-4558-8bb6-2a57a2ecc5e5
+colorboard(name::AbstractString, prbs::AbstractVector{T}) where T <: AbstractFloat = colorboard(name, makecolors(prbs))  
 
 # ╔═╡ 78ec9799-ecea-45e0-8196-df46f12274f4
 function make_ttt_board_raw(board; colors = ["rgba(0, 0, 0, 0)" for _ in 1:9], cellsize = 100, name = randomclassname())
@@ -509,7 +512,7 @@ PlutoUI = "~0.7.51"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0-rc3"
+julia_version = "1.9.0"
 manifest_format = "2.0"
 project_hash = "a449faa4600896df45ab8629593ebba092bed48d"
 
@@ -815,5 +818,6 @@ version = "17.4.0+0"
 # ╠═a9caeaba-40e0-47ff-a3e7-0e2f56410d36
 # ╠═8b013122-4a3e-49f9-aa5e-0bfd0c01c47c
 # ╠═d3a23815-e4ea-45f8-8d2a-ac0fceca49f7
+# ╠═4d9dc884-b567-4558-8bb6-2a57a2ecc5e5
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
