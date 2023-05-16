@@ -281,12 +281,14 @@ WordleInput(;default = "") = HTML("""
 @bind rawanswer confirm(WordleInput(default="apple"))
 
 # ╔═╡ 58cece7f-7b8f-4e33-b5b7-9205b140fc34
-if occursin(r"^[A-Za-z]{5}$", rawanswer)
+if ismissing(rawanswer) || rawanswer == ""
+	answer = ""
+	md"""Submit a 5 letter word for the answer"""
+elseif occursin(r"^[A-Za-z]{5}$", rawanswer)
 	answer = rawanswer
 	md"""Answer successfully submitted as $answer"""
 else
 	answer = ""
-	md"""Submit a 5 letter word for the answer"""
 end
 
 # ╔═╡ c514ce23-2762-4e38-b181-accb7fac848c
