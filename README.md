@@ -9,6 +9,8 @@
 
 ### Tic Tac Toe Boards
 
+See the [notebook](https://jekyllstein.github.io/PlutoTestNotebooks/tictactoe_boards.html)
+
 ![tttboard1](https://github.com/jekyllstein/PlutoTestNotebooks/assets/29740321/9b7673b9-2445-43ec-985d-a9138f108abc)
 
 ![tttboard2](https://github.com/jekyllstein/PlutoTestNotebooks/assets/29740321/83565417-628f-4e87-82b4-53b5725fa8e9)
@@ -28,3 +30,9 @@
 ![tttboardcombine](https://github.com/jekyllstein/PlutoTestNotebooks/assets/29740321/ad636c31-3965-40a9-a90b-7f83fdab68f5)
 
 </details>
+
+### Wordle Feedback
+
+See the [notebook](https://jekyllstein.github.io/PlutoTestNotebooks/wordle_feedback.html)
+
+![wordlegif](https://github.com/jekyllstein/PlutoTestNotebooks/assets/29740321/cfdfad77-dc66-4a81-a9d1-972163aff105)
