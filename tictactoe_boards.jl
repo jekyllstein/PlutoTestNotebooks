@@ -502,7 +502,7 @@ resize_boards((t.id for t in testboards), 30)
 colorboard(last(testboards).id, no_color)
 
 # ╔═╡ 97c031ba-cb97-457c-a462-5ff5508f660a
- function Base.show(io::IO, m::MIME"text/html", tttboard::TTTBoard)
+function Base.show(io::IO, m::MIME"text/html", tttboard::TTTBoard{T}) where T <: Integer
  	(board, id) = make_ttt_board_raw(tttboard.state; cellsize = tttboard.cellsize, name = tttboard.name)
 	js = make_board_script(id, tttboard.state)
 	show(io, m, HTML("""
