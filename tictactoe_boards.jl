@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.25
+# v0.19.26
 
 using Markdown
 using InteractiveUtils
@@ -17,6 +17,7 @@ end
 # ╔═╡ cde42e11-533c-46c3-93b2-0faa1fe98d2d
 begin
 	using PlutoUI, Random, HypertextLiteral
+	import AbstractPlutoDingetjes.Bonds
 	TableOfContents()
 end
 
@@ -46,32 +47,10 @@ md"""
 ## Display Boards with Style Changes
 """
 
-# ╔═╡ de1ea78f-a7e3-47ca-ae8e-c0bb4b0a0824
-@bind displayboardstyles PlutoUI.combine() do Child
-	md"""
-	Select cell color:
-	$(Child(ColorStringPicker(default = "#aabbcc")))
-	Select cell size in pixels:
-	$(Child(Slider(10:200, default = 75, show_value=true)))
-	"""
-end
-
 # ╔═╡ eccb2779-8ffd-4f8c-828d-f1416e7f9d3f
 md"""
 ## Display Multiple Boards
 Using the `displayboards` function, one can display and later style a series a boards in a flexbox HTML container which allows wrapping to multiple rows.  The displayed state of each board is controled by this board selector.
-"""
-
-# ╔═╡ 7856fc0d-7fd9-406f-b4d3-cf9c11b07aba
-md"""
-## Using Combine With Boards
-In order to display board controllers effectively with `combine` some html is helpful to render them horizontally.
-
-Notice that this only changes the cosmetic appearance of teh controller, not the state.
-
-Cell Size $(@bind doubleboardsize Slider(30:150, default = 50, show_value=true))
-
-Left Color $(@bind doubleboardcolor1 ColorStringPicker(default = "#72fdff"))
 """
 
 # ╔═╡ c5b444fc-bda7-43e5-96f2-fd4bd0398699
@@ -178,86 +157,6 @@ const base_cell_style = HTML("""
 	</style>
 """)
 
-# ╔═╡ e31fdf14-77df-40e8-bec6-5c3a361ce5a4
-function make_board_script(name) 
-	"""
-<script>
-	const resetButton = document.querySelector(".$name .resetButton");
-	console.log("got button")
-	console.log(resetButton)
-	resetButton.addEventListener("click", resetClick);
-	resetButton.onclick = console.log("clicked");
-	
-	const X_CLASS = 'x'
-	const CIRCLE_CLASS = 'o'
-	const span = currentScript.parentElement
-	const board = document.querySelector('.grid-container.$name')
-	const cells = [...board.children];
-	
-	let circleTurn 
-
-	span.value = [$(zeros(Int64, 9)), '$name']
-	span.dispatchEvent(new CustomEvent('input'))
-
-	cells.forEach ((child) => {
-		child.addEventListener('click', handleClick, {once: true});    
-	})
-
-	function resetClick(e) {
-		console.log('button pushed')
-		restart()
-	}
-
-	function restart() {
-		circleTurn = false
-		cells.forEach((cell) => {
-			var index = cells.indexOf(cell);
-			cell.classList.remove(X_CLASS);
-			cell.classList.remove(CIRCLE_CLASS);
-			cell.removeEventListener('click', handleClick);
-			cell.addEventListener('click', handleClick, {once: true});
-			span.value[0][index] = 0;
-		})
-		setBoardHoverClass()
-		span.dispatchEvent(new CustomEvent('input'))
-	}
-
-	function handleClick(e) {
-		const cell = e.target;
-		const index = cells.indexOf(cell);
-		console.log('cell ', index, ' clicked');
-		const currentClass = circleTurn ? CIRCLE_CLASS : X_CLASS;
-		const fillValue = circleTurn ? 2 : 1;
-		placeMark(cell, currentClass);
-		swapTurns();
-		setBoardHoverClass();
-		span.value[0][index] = fillValue;
-		span.dispatchEvent(new CustomEvent('input'));
-	}
-
-	function placeMark(cell, currentClass) {
-		cell.classList.add(currentClass)
-	}
-
-	function setBoardHoverClass() {
-		board.classList.remove(X_CLASS)
-		board.classList.remove(CIRCLE_CLASS)
-		if (circleTurn) {
-			board.classList.add(CIRCLE_CLASS)
-		} else {
-			board.classList.add(X_CLASS)
-		}
-				
-	}
-
-	function swapTurns() {
-		circleTurn = !circleTurn
-	}
-	
-</script>
-"""
-end
-
 # ╔═╡ e1907490-9fa7-4d79-9f89-bbce5bc9848c
 md"""
 ## Board Display and Control
@@ -346,8 +245,185 @@ resize_boards(boardnames::Union{AbstractVector{T}, Base.Generator}, size) where 
 # ╔═╡ a9caeaba-40e0-47ff-a3e7-0e2f56410d36
 randomclassname(n = 20) = string(rand('a':'z'), String(rand(['a':'z'; '0':'9'; '_'; '-'], 20)))
 
+# ╔═╡ facd38d7-273d-4a51-bb34-1a9f8837efe5
+begin 
+	struct TTTBoard{T<:Integer} 
+		name::String
+		state::Vector{T}
+		cellsize::Integer
+		alignment::String
+	end
+
+	TTTBoard(;cellsize = 100, alignment="flex-start") = TTTBoard(randomclassname(), zeros(Int64, 9), cellsize, alignment)
+end
+
+# ╔═╡ 7c3aaa4c-4f10-47de-bbc1-84e876a7e532
+@bind doubleboard PlutoUI.combine() do Child
+	@htl("""
+		<span id=board2control>
+		$(Child(TTTBoard()))
+		$(Child(TTTBoard()))
+		</span>
+		<style>
+		#board2control {
+			display: flex;
+			justify-content:center;
+			flex-wrap: wrap;
+		}
+		</style>
+	""")
+end
+
+# ╔═╡ af296b3f-6881-425d-87bf-1de14c8f299e
+#both board states visible in output
+doubleboard
+
+# ╔═╡ b6ebd7ed-d09e-475b-93bf-16ec672f4779
+Bonds.initial_value(board::TTTBoard{T}) where T <: Integer = 
+        (state = board.state, id = board.name)
+
+# ╔═╡ 447eeca5-e131-4309-9500-2bf2475f23be
+Base.get(board::TTTBoard) = Bonds.initial_value(board)
+
+# ╔═╡ 959411d9-ba40-4a8f-82ec-44dfcb5f436b
+md"""
+## Single board without styling
+Playable Tic Tac Toe Board.  The moves on the board can be bound to a variable.  The bound variable always is a tuple containing 1) A vector of length 9 representing the board state where 0, 1, and 2 represent blank, X, and O respectively. 2) A name randomly generated to distinguish the board from any future boards that may be created.  This name can also be used to style to board in later cells.  Changes to the board state can be achieved by clicking with the mouse.
+
+$(@bind demoboard TTTBoard())
+"""
+
+# ╔═╡ b65609b3-8334-4628-bd21-e3bb8b8d5972
+#observe board state changing after clicking
+demoboard
+
+# ╔═╡ 6afcc84f-9418-4343-a245-cf3bf00f12cf
+md"""
+Using the unique identifier for this board and the function `colorboard` we can apply colors to the grid cells that reflect the play state.  Here I've simply colored squares based on the move, but in genral any function of the board state that produces a vector of 9 colors can be used.  Also, numbers from 0 to 1 can be used in place of color strings which will be mapped to colors from gray to green.  Observe the color change while playing moves.
+
+$(@bind styledboard TTTBoard())
+"""
+
+# ╔═╡ 3c010453-030c-460a-af96-e3b2d19bb93b
+styledboard
+
+# ╔═╡ de1ea78f-a7e3-47ca-ae8e-c0bb4b0a0824
+@bind displayboardstyles PlutoUI.combine() do Child
+	md"""
+	Select cell color:
+	$(Child(ColorStringPicker(default = "#aabbcc")))
+	Select cell size in pixels:
+	$(Child(Slider(10:200, default = 75, show_value=true)))
+	"""
+end
+
+# ╔═╡ 1c8c2776-97a4-493f-9b7a-d12d328657f6
+@bind multiboardstate TTTBoard(cellsize=70)
+
+# ╔═╡ 7856fc0d-7fd9-406f-b4d3-cf9c11b07aba
+md"""
+## Using Combine With Boards
+In order to display board controllers effectively with `combine` some html is helpful to render them horizontally.
+
+Notice that this only changes the cosmetic appearance of teh controller, not the state.
+
+Cell Size $(@bind doubleboardsize Slider(30:150, default = 50, show_value=true))
+
+Left Color $(@bind doubleboardcolor1 ColorStringPicker(default = "#72fdff"))
+"""
+
+# ╔═╡ 31f73016-8565-413c-bddf-01de41a52d2e
+#resize both boards to 50 pixel cells
+resize_boards([b.id for b in doubleboard], doubleboardsize)
+
+# ╔═╡ 97d3bf3d-fd24-4217-af83-e5c0dd8999bd
+function Bonds.transform_value(board::TTTBoard{T}, val_from_js) where T <: Integer
+    @assert val_from_js isa Vector
+	(state = [T(v) for v in val_from_js], id = board.name)      
+end
+
 # ╔═╡ 8b013122-4a3e-49f9-aa5e-0bfd0c01c47c
 is_o_move(board) = Bool(sum(board) % 0x0003)
+
+# ╔═╡ e31fdf14-77df-40e8-bec6-5c3a361ce5a4
+function make_board_script(name, state) 
+	"""
+<script>
+	const resetButton = document.querySelector(".$name .resetButton");
+	console.log("got button")
+	console.log(resetButton)
+	resetButton.addEventListener("click", resetClick);
+	resetButton.onclick = console.log("clicked");
+	
+	const X_CLASS = 'x'
+	const CIRCLE_CLASS = 'o'
+	const span = currentScript.parentElement
+	const board = document.querySelector('.grid-container.$name')
+	const cells = [...board.children];
+	
+	let circleTurn = $(is_o_move(state))
+
+	span.value = $state
+
+	cells.forEach ((child) => {
+		child.addEventListener('click', handleClick, {once: true});    
+	})
+
+	function resetClick(e) {
+		console.log('button pushed')
+		restart()
+	}
+
+	function restart() {
+		circleTurn = false
+		cells.forEach((cell) => {
+			var index = cells.indexOf(cell);
+			cell.classList.remove(X_CLASS);
+			cell.classList.remove(CIRCLE_CLASS);
+			cell.removeEventListener('click', handleClick);
+			cell.addEventListener('click', handleClick, {once: true});
+			console.log('setting value at index ', index, ' to 0');
+			span.value[index] = 0;
+		})
+		setBoardHoverClass()
+		span.dispatchEvent(new CustomEvent('input'))
+	}
+
+	function handleClick(e) {
+		const cell = e.target;
+		const index = cells.indexOf(cell);
+		console.log('cell ', index, ' clicked');
+		const currentClass = circleTurn ? CIRCLE_CLASS : X_CLASS;
+		const fillValue = circleTurn ? 2 : 1;
+		placeMark(cell, currentClass);
+		swapTurns();
+		setBoardHoverClass();
+		span.value[index] = fillValue;
+		span.dispatchEvent(new CustomEvent('input'));
+	}
+
+	function placeMark(cell, currentClass) {
+		cell.classList.add(currentClass)
+	}
+
+	function setBoardHoverClass() {
+		board.classList.remove(X_CLASS)
+		board.classList.remove(CIRCLE_CLASS)
+		if (circleTurn) {
+			board.classList.add(CIRCLE_CLASS)
+		} else {
+			board.classList.add(X_CLASS)
+		}
+				
+	}
+
+	function swapTurns() {
+		circleTurn = !circleTurn
+	}
+	
+</script>
+"""
+end
 
 # ╔═╡ d3a23815-e4ea-45f8-8d2a-ac0fceca49f7
 #option to just make every cell the same color
@@ -355,6 +431,13 @@ colorboard(name, color) = colorboard(name, fill(color, 9))
 
 # ╔═╡ 4d9dc884-b567-4558-8bb6-2a57a2ecc5e5
 colorboard(name::AbstractString, prbs::AbstractVector{T}) where T <: AbstractFloat = colorboard(name, makecolors(prbs))  
+
+# ╔═╡ 1ce54fe0-4b85-405b-bf0a-abd7cb8d343c
+colorboard(styledboard.id, [v == 1 ? "green" : v == 2 ? "red" : "blue" for v in styledboard[1]])
+
+# ╔═╡ 29ea9f9c-e0e5-4b75-bc5f-e953b8bc2c2f
+#color the first board teal
+colorboard(doubleboard |> first |> last, doubleboardcolor1)
 
 # ╔═╡ 78ec9799-ecea-45e0-8196-df46f12274f4
 function make_ttt_board_raw(board; colors = ["rgba(0, 0, 0, 0)" for _ in 1:9], cellsize = 100, name = randomclassname())
@@ -396,64 +479,15 @@ HTML(first(rawdisplayboard))
 
 # ╔═╡ 1d995e01-4fdb-42f3-8eed-d4c78302bd28
 #calling this with a single color will assume that every cell should be the same color
-colorboard(last(rawdisplayboard), displayboardstyles|>first)
+colorboard(rawdisplayboard.id, displayboardstyles|>first)
 
 # ╔═╡ fbb5c9a3-32ba-4a34-adc3-5e9e6fd5b435
 #resize a board with a given id, size is in pixels
-resize_board(last(rawdisplayboard), last(displayboardstyles))
-
-# ╔═╡ 9e72a8a3-c5e2-4a04-af8b-d01b0793e810
-#create interactive board that works with @bind
-function TTTBoard(;cellsize = 100, alignment = "flex-start")
-	(board, id) = make_ttt_board_raw(zeros(9); cellsize = cellsize) #make empty board
-	js = make_board_script(id)
-	HTML(
-		"""
-		<span class = $id>
-			<button class="resetButton">Reset Board</button>
-			<div class = "board-value"></div>
-			$board
-			$js
-		</span>
-		<style>
-			.$id {
-				display: flex;
-				flex-direction: column;
-				align-items: $alignment;
-			}
-		</style>
-		"""
-	)
-end
-
-# ╔═╡ 959411d9-ba40-4a8f-82ec-44dfcb5f436b
-md"""
-## Single board without styling
-Playable Tic Tac Toe Board.  The moves on the board can be bound to a variable.  The bound variable always is a tuple containing 1) A vector of length 9 representing the board state where 0, 1, and 2 represent blank, X, and O respectively. 2) A name randomly generated to distinguish the board from any future boards that may be created.  This name can also be used to style to board in later cells.  Changes to the board state can be achieved by clicking with the mouse.
-
-$(@bind demoboard TTTBoard())
-"""
-
-# ╔═╡ b65609b3-8334-4628-bd21-e3bb8b8d5972
-#observe board state changing after clicking
-demoboard
-
-# ╔═╡ 6afcc84f-9418-4343-a245-cf3bf00f12cf
-md"""
-Using the unique identifier for this board and the function `colorboard` we can apply colors to the grid cells that reflect the play state.  Here I've simply colored squares based on the move, but in genral any function of the board state that produces a vector of 9 colors can be used.  Also, numbers from 0 to 1 can be used in place of color strings which will be mapped to colors from gray to green.  Observe the color change while playing moves.
-
-$(@bind styledboard TTTBoard())
-"""
-
-# ╔═╡ 1ce54fe0-4b85-405b-bf0a-abd7cb8d343c
-colorboard(styledboard[2], [v == 1 ? "green" : v == 2 ? "red" : "blue" for v in styledboard[1]])
-
-# ╔═╡ 1c8c2776-97a4-493f-9b7a-d12d328657f6
-@bind multiboardstate TTTBoard(cellsize=70)
+resize_board(rawdisplayboard.id, last(displayboardstyles))
 
 # ╔═╡ c3e7bf6f-c713-4cee-a20f-8f8ed5230116
 #generate multiple boards with custom coloring
-testboards = [make_ttt_board_raw(multiboardstate[1]; cellsize = 30, colors = makecolors(rand(9))) for _ in 1:9]
+testboards = [make_ttt_board_raw(multiboardstate.state; cellsize = 30, colors = makecolors(rand(9))) for _ in 1:9]
 
 # ╔═╡ b1587084-03ab-46c9-858b-fc2fc69191dd
 #display multiple boards in one cell
@@ -467,43 +501,37 @@ resize_boards((t.id for t in testboards), 30)
 #eliminate the colors of the last board
 colorboard(last(testboards).id, no_color)
 
-# ╔═╡ 7c3aaa4c-4f10-47de-bbc1-84e876a7e532
-@bind doubleboard PlutoUI.combine() do Child
-	@htl("""
-		<span id=board2control>
-		$(Child(TTTBoard()))
-		$(Child(TTTBoard()))
+# ╔═╡ 97c031ba-cb97-457c-a462-5ff5508f660a
+ function Base.show(io::IO, m::MIME"text/html", tttboard::TTTBoard)
+ 	(board, id) = make_ttt_board_raw(tttboard.state; cellsize = tttboard.cellsize, name = tttboard.name)
+	js = make_board_script(id, tttboard.state)
+	show(io, m, HTML("""
+		<span class = $id>
+			<button class="resetButton">Reset Board</button>
+			<div class = "board-value"></div>
+			$board
+			$js
 		</span>
 		<style>
-		#board2control {
-			display: flex;
-			justify-content:center;
-			flex-wrap: wrap;
-		}
+			.$id {
+				display: flex;
+				flex-direction: column;
+				align-items: $(tttboard.alignment);
+			}
 		</style>
-	""")
+	"""))
 end
-
-# ╔═╡ af296b3f-6881-425d-87bf-1de14c8f299e
-#both board states visible in output
-doubleboard
-
-# ╔═╡ 29ea9f9c-e0e5-4b75-bc5f-e953b8bc2c2f
-#color the first board teal
-colorboard(doubleboard |> first |> last, doubleboardcolor1)
-
-# ╔═╡ 31f73016-8565-413c-bddf-01de41a52d2e
-#resize both boards to 50 pixel cells
-resize_boards([last(b) for b in doubleboard], doubleboardsize)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+AbstractPlutoDingetjes = "6e696c72-6542-2067-7265-42206c756150"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
+AbstractPlutoDingetjes = "~1.1.4"
 HypertextLiteral = "~0.9.4"
 PlutoUI = "~0.7.51"
 """
@@ -514,7 +542,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.0"
 manifest_format = "2.0"
-project_hash = "a449faa4600896df45ab8629593ebba092bed48d"
+project_hash = "8c95ea114d50b90197d690a6f3e3ae716e137652"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -778,18 +806,19 @@ version = "17.4.0+0"
 # ╠═b65609b3-8334-4628-bd21-e3bb8b8d5972
 # ╟─470620fe-e698-41a6-9d86-e8c3cd4abb02
 # ╟─6afcc84f-9418-4343-a245-cf3bf00f12cf
+# ╠═3c010453-030c-460a-af96-e3b2d19bb93b
 # ╠═1ce54fe0-4b85-405b-bf0a-abd7cb8d343c
 # ╟─5cb21f86-fc56-42d4-94c9-a4fb8a60eb58
 # ╠═b1657d32-a4fc-483d-8abb-f0eee77cd737
 # ╟─21592bdd-d64c-4988-b401-dcfa66bb5077
 # ╟─de1ea78f-a7e3-47ca-ae8e-c0bb4b0a0824
-# ╟─19cde3ad-df34-4d07-bf19-16d80014f3a7
+# ╠═19cde3ad-df34-4d07-bf19-16d80014f3a7
 # ╠═1d995e01-4fdb-42f3-8eed-d4c78302bd28
 # ╠═fbb5c9a3-32ba-4a34-adc3-5e9e6fd5b435
 # ╟─eccb2779-8ffd-4f8c-828d-f1416e7f9d3f
-# ╠═1c8c2776-97a4-493f-9b7a-d12d328657f6
-# ╠═c3e7bf6f-c713-4cee-a20f-8f8ed5230116
-# ╠═b1587084-03ab-46c9-858b-fc2fc69191dd
+# ╟─1c8c2776-97a4-493f-9b7a-d12d328657f6
+# ╟─c3e7bf6f-c713-4cee-a20f-8f8ed5230116
+# ╟─b1587084-03ab-46c9-858b-fc2fc69191dd
 # ╠═dfdb0408-15e6-40d5-a426-dda4a295e5ba
 # ╠═35993508-6c61-4744-a447-4746e157fd24
 # ╟─7856fc0d-7fd9-406f-b4d3-cf9c11b07aba
@@ -803,7 +832,11 @@ version = "17.4.0+0"
 # ╠═e31fdf14-77df-40e8-bec6-5c3a361ce5a4
 # ╟─e1907490-9fa7-4d79-9f89-bbce5bc9848c
 # ╠═78ec9799-ecea-45e0-8196-df46f12274f4
-# ╠═9e72a8a3-c5e2-4a04-af8b-d01b0793e810
+# ╠═facd38d7-273d-4a51-bb34-1a9f8837efe5
+# ╠═97c031ba-cb97-457c-a462-5ff5508f660a
+# ╠═447eeca5-e131-4309-9500-2bf2475f23be
+# ╠═b6ebd7ed-d09e-475b-93bf-16ec672f4779
+# ╠═97d3bf3d-fd24-4217-af83-e5c0dd8999bd
 # ╟─aaaf6e33-2087-4891-b1f4-743ff5e72a54
 # ╠═1c274453-55e3-4f22-871a-9c04390974af
 # ╠═d23b4967-e97c-4252-82cf-04adfabd3f24
