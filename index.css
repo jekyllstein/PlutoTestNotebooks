@@ -1,0 +1,76 @@
+body {
+    background-color: DodgerBlue;
+    font-size: x-large;
+    display: flex;
+    flex-direction: column;
+    align-items:center;
+  }
+  .header {
+    width: 80%;
+    display: flex;
+    justify-content: center;
+  }
+  
+  h1 {
+    border: 1px solid gray;
+    padding: 1%;
+    background-color: rgb(150, 200, 220);
+    box-shadow: 5px 5px 0px 0px;
+    font: bold min(100px, 10vw) Times;
+  }
+  
+  .githublink {
+    position: fixed;
+    top: 1vh;
+    right: 5vw;
+    border: 1px solid black;
+    box-shadow: 5px 5px 0px 0px;
+    background-color: rgb(150, 200, 220);
+    padding: 10px;
+    font: bold min(30px, 2vw) Times;
+  }
+  
+  .githublink:hover {
+    background-color: tomato;
+  }
+  
+  ul {
+    list-style-type: none;
+    padding: 0;
+    border: 1px solid #ddd;
+  }
+  
+  ul li {
+    padding: 8px 16px;
+    border-bottom: 1px solid #ddd;
+    background-color: MediumSeaGreen;
+    font: min(30px, 5vw) Times;
+  }
+  
+  ul li:hover {
+    background-color: tomato;
+  }
+  
+  ul li:last-child {
+    border-bottom: none
+  }
+
+  :root {
+    --textheight: min(20px, 0.7em);
+  }
+
+  .footer {
+    position: fixed;
+    bottom: 0;
+    width: 100vw;
+    text-align: end;
+    font:italic var(--textheight) Corbel;
+    display: flex;
+    justify-content: center;
+    background-color: rgba(142, 111, 111, 0.6);
+
+  }
+
+  .footer * {
+    padding: calc(var(--textheight)/2);
+  }
