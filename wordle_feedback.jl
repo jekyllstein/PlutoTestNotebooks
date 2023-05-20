@@ -279,8 +279,8 @@ convert_bytes(v::AbstractVector{T}) where T <: Integer = enumerate(v) |> Map(a -
 
 # ╔═╡ da01b6d5-6c7d-49dc-933d-e9bf475d91a2
 function show_blank_squares(guess)
-	word = guess[1]
-	ind = guess[2]
+	word = guess.word
+	ind = guess.addindex
 	function getclass(i)
 		str2 = if (ind !=-1) && ((i-1) == ind)
 			"anim"
