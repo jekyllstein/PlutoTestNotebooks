@@ -20,6 +20,9 @@ begin
 	TableOfContents()
 end
 
+# ╔═╡ c6f8ad99-9200-4ff2-b0d5-e6ac7cb893c2
+using Transducers
+
 # ╔═╡ 503b348a-f3af-11ed-043e-a93ac4f37a8e
 md"""
 # Package Dependencies
@@ -35,12 +38,6 @@ md"""
 ## Pattern Display Function
 Shows an animation of the feedback being revealed for a given guess and answer.  Requires each word be 5 characters.
 """
-
-# ╔═╡ 00b839be-83b0-435e-a903-9728e7b15c8d
-@bind testguess TextField(default="whose")
-
-# ╔═╡ 63bb509d-91e1-418e-9a84-10fe7cadf1d0
-testguess
 
 # ╔═╡ 83e390c1-16e8-4ba5-abf8-c8fadddf7868
 md"""
@@ -58,6 +55,12 @@ md"""### Answer"""
 
 # ╔═╡ 02d7d45a-cd01-4ec0-b3d5-976d4dca5302
 md"""### Guess"""
+
+# ╔═╡ 3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
+md"""
+## View Feedback Combinations
+Each integer from 0 to 242 is associated with a given set of feedback using ternary encoding.  Using these integers we can view all the possible color patterns.
+"""
 
 # ╔═╡ bdf2524f-04a1-4ad4-9ba0-367e72e81994
 md"""
@@ -127,31 +130,45 @@ const colorlookup = Dict([0x00 => "#3a3a3c", 0x01 => "#b59f3b", 0x02 => "#538d4e
 const final_box_style = """color: #ffffff;"""
 
 # ╔═╡ 042d38e6-edfc-4b08-81c5-497ce5c1eaee
-function add_elements(a, b)
+function add_elements(a::AbstractString, b::AbstractString)
 	"""
 	$a
 	$b
 	"""
 end
 
+# ╔═╡ 4ce43a3b-afad-4f10-9ce4-0bc48d3de0c2
+add_elements(a::HTML, b::HTML) = add_elements(a.content, b.content)
+
+# ╔═╡ 0dc1b5d6-f62e-44f6-875f-38873f337efc
+add_elements(a::HTML, b::AbstractString) = add_elements(a.content, b)
+
+# ╔═╡ 332e3018-5134-4c6f-b7f8-3770a8ca2ba5
+add_elements(a::AbstractString, b::HTML) = add_elements(a, b.content)
+
 # ╔═╡ cf667532-40de-4a1e-9e26-9f458e7ded70
 const basewordlestyle = HTML(
 	"""
 	<style>
+		:root {
+			--container-width: min(700px, 90vw);
+		}
 		.wordle-box {
 			display: flex;
-			height: 150px;
+			width: var(--container-width);
+			height: calc(1.2*var(--container-width)/5);
 			align-items: center;
-			justify-content: center;
+			justify-content: auto;
 		}
 		.wordle-box * {
 			display: inline-flex;
-			width: 100px;
-			height: 100px;
+			width: calc(var(--container-width)/5/1.3);
+			height: calc(var(--container-width)/5/1.3);
+			aspect-ratio: 1;
 			align-items: center;
 			justify-content: center;
 			vertical-align: middle;	
-			margin: 4px;
+			margin: calc(var(--container-width)*0.04/5/1.3);
 			font-family: "nyt-franklin", sans-serif;
 			font-weight: bold;
 			display: inline-flex;
@@ -159,7 +176,7 @@ const basewordlestyle = HTML(
 			text-align: center;
 			-webkit-font-smoothing: antialiased;
 			text-transform: uppercase;
-			font-size: 60px; 
+			font-size: calc(var(--container-width)/5/2.0); 
 		}
 
 		.inputbox {
@@ -170,8 +187,27 @@ const basewordlestyle = HTML(
 	"""
 )
 
+# ╔═╡ d07ecb11-b9b9-44ac-8b71-2efd18f19cde
+function wordle_restyle(f::Real, class::String) 
+	"""
+	<style>
+		.wordle-box.$class {
+			width: calc($f*var(--container-width));
+			height: calc($f*1.2*var(--container-width)/5);
+		}
+		.wordle-box.$class * {
+			display: inline-flex;
+			width: calc($f*var(--container-width)/5/1.3);
+			height: calc($f*var(--container-width)/5/1.3);
+			margin: calc($f*var(--container-width)*0.04/5/1.3);
+			font-size: calc($f*var(--container-width)/5/2.0); 
+		}
+	</style>
+	"""
+end
+
 # ╔═╡ 594fb234-22c4-4dc2-818d-ec4b0525b3cd
-function show_pattern(guess, answer; repeat = 1)
+function show_pattern(guess, answer; sizepct = 1.0, repeat = 1)
 	feedback = get_feedback(guess, answer)
 	colors = [colorlookup[i] for i in feedback]
 
@@ -190,8 +226,8 @@ function show_pattern(guess, answer; repeat = 1)
 		"""
 		@keyframes $guess$answer$(i)2 {
 			0% {transform: translateY(0px);}
-			50% {transform: translateY(-25px);}
-			75% {transform: translateY(10px);}
+			50% {transform: translateY(-.33em);}
+			75% {transform: translateY(0.2em);}
 			100% {transform: translateY(0px);}
 		}
 		.wordle-box.$guess$answer #box$i {
@@ -215,6 +251,11 @@ function show_pattern(guess, answer; repeat = 1)
 		<div class = inputbox id = "box$i">$(guess[i])</div>
 		"""
 	end
+	restyle = if sizepct == 1
+		""""""
+	else
+		wordle_restyle(sizepct, cname)
+	end
 
 	HTML("""
 	<span id = wordleoutput>
@@ -225,6 +266,213 @@ function show_pattern(guess, answer; repeat = 1)
 		$(mapreduce(make_base_animation, add_elements, 1:5))
 		$(mapreduce(box_style, add_elements, 1:5))
 	</style>
+	$restyle
+	</span>
+	""")
+end
+
+# ╔═╡ c377589a-af21-42e9-9bdc-432442a8ccbc
+show_pattern(pnum::Integer; kwargs...) = show_pattern(digits(pnum, base=3, pad=5); kwargs...)
+
+# ╔═╡ c55a66aa-d993-4a77-9cb9-a8c7037de7fb
+convert_bytes(v::AbstractVector{T}) where T <: Integer = enumerate(v) |> Map(a -> a[2]*3^(a[1]-1)) |> sum
+
+# ╔═╡ da01b6d5-6c7d-49dc-933d-e9bf475d91a2
+function show_blank_squares(guess)
+	word = guess[1]
+	ind = guess[2]
+	function getclass(i)
+		str2 = if (ind !=-1) && ((i-1) == ind)
+			"anim"
+		else
+			""
+		end
+		"""class = "inputbox $str2" """
+	end
+	function make_box(i)
+		"""
+		<div $(getclass(i))>$(length(word) < i ? "" : word[i])</div>
+		"""
+	end
+	HTML("""
+	<span id = wordleoutputblank>
+		<div class="wordle-box">
+			$(mapreduce(make_box, add_elements, 1:5))
+		</div>
+	</span>
+	""")
+end
+
+# ╔═╡ c9b7b336-032e-4597-a529-0df2f841f2cf
+const inputstyle = HTML("""
+	<style>
+	#wordleoutputblank .inputbox {
+			background-color: rgba(0, 0, 0, 0);
+			$final_box_style;
+			border: 1px solid gray;
+		}
+		
+	#wordleoutputblank .inputbox.anim {
+			animation: addletter 0.2s ease-in-out;
+		}
+	@keyframes addletter {
+		0% {transform: scale(1.0);}
+		50% {transform: scale(1.05);}
+		100% {transform: scale(1.0);}
+	}
+	</style>
+""")
+
+# ╔═╡ 02274b6f-5a58-41e6-82e1-820c7f888764
+md"""
+## Wordle Input Element
+"""
+
+# ╔═╡ 24327929-c8f5-45b2-80ad-c873daedf677
+import AbstractPlutoDingetjes.Bonds
+
+# ╔═╡ ca1cd33a-3d41-4878-8b95-7b7f44353695
+begin
+	struct WordleInput{T <: AbstractString}
+		word::T
+		addindex::Integer
+	end
+
+	WordleInput(;default="") = WordleInput(uppercase(default), length(default)-1)
+	
+	function Bonds.show(io::IO, m::MIME"text/html", input::WordleInput)
+		show(io, m, HTML("""
+		<span>
+		<input class=wordleinput type=text oninput="this.value = this.value.replace(/[^a-zA-Z]/, '')" maxlength=5 $(isempty(input.word) ? "" : "value=$(input.word)") size=5>
+		<style>
+			.wordleinput {
+				text-transform:uppercase;
+				font-family: "nyt-franklin", sans-serif;
+				font-weight: bold;
+				font-size: calc(var(--container-width)/5/2.0); 
+			}
+		</style>
+		<script>
+			const span = currentScript.parentElement;
+			const inputbox = span.querySelector(".wordleinput");
+			span.value = [inputbox.value, inputbox.value.length-1];
+			inputbox.addEventListener('keydown', handleWordleInput);
+			inputbox.addEventListener('input', handleInput); 
+			
+			function handleInput(e) {
+				span.value[0] = inputbox.value;
+				if (inputbox.value.length === 0) {
+					span.value[1] = -1;
+				}
+			}
+		
+			function handleWordleInput(e) {
+				if (e.keyCode === 8) {
+					span.value[1] = -1;
+				} else if (inputbox.value.length === 5) {
+					span.value[1] = -1;
+				} else if (e.keyCode >= 65 && e.keyCode <= 90) {
+					span.value[1] = inputbox.value.length;
+				} else {
+					span.value[1] = -1;
+				} 
+			}
+		</script>
+		</span>
+		"""))
+	end
+
+	Base.get(input::WordleInput) = input
+	Bonds.initial_value(input::WordleInput) = (word = input.word, addindex = input.addindex)
+	Bonds.possible_values(input::WordleInput) = Bonds.InfinitePossibilities()
+	Bonds.transform_value(input::WordleInput, val_from_js) = (word=uppercase(val_from_js[1]), addindex=val_from_js[2])
+end
+
+# ╔═╡ 00b839be-83b0-435e-a903-9728e7b15c8d
+@bind testguess TextField(default="whose")
+
+# ╔═╡ 63bb509d-91e1-418e-9a84-10fe7cadf1d0
+testguess
+
+# ╔═╡ 2b1e631e-e56a-4514-b217-8c1a1b9d43c8
+@bind rawanswer confirm(WordleInput(default="apple"))
+
+# ╔═╡ 58cece7f-7b8f-4e33-b5b7-9205b140fc34
+if ismissing(rawanswer.word) || rawanswer.word == ""
+	answer = ""
+	md"""Submit a 5 letter word for the answer"""
+elseif occursin(r"^[A-Za-z]{5}$", rawanswer.word)
+	answer = rawanswer.word
+	md"""Answer successfully submitted as $answer"""
+else
+	answer = ""
+end
+
+# ╔═╡ c514ce23-2762-4e38-b181-accb7fac848c
+@bind guess WordleInput()
+
+# ╔═╡ 572bab4a-18e6-432b-8cc6-ece539a21142
+function show_pattern(feedback::AbstractVector{T}; sizepct = 1.0,  repeat = 1) where T <: Integer
+	colors = [colorlookup[i] for i in feedback]
+	cname = "a$(convert_bytes(feedback))" #class name can't start with a number
+
+	function make_base_animation(i)
+		"""
+		
+		@keyframes $cname$i {
+			0% {transform: rotateX(90deg); background-color: rgba(0, 0, 0, 0); color: rgba(0, 0, 0, 0);}	
+			50% {transform: translateY(0px); background-color: $(colors[i]); $final_box_style}
+			100% {transform: translateY(0px); background-color: $(colors[i]); $final_box_style}
+		}
+		"""
+	end
+
+	function make_win_style(i)
+		"""
+		@keyframes $cname$(i)2 {
+			0% {transform: translateY(0px);}
+			50% {transform: translateY(-.33em);}
+			75% {transform: translateY(0.2em);}
+			100% {transform: translateY(0px);}
+		}
+		.wordle-box.$cname #box$i {
+			animation: $cname$i 2s $(2*i/5)s both, $cname$(i)2 0.7s $(2.1 + i/8)s ease-in-out $repeat;
+		}	
+		"""
+	end
+
+	function make_box_style(i)
+		"""
+		.wordle-box.$cname #box$i {
+			animation: $cname$i 2s $(2*i/5)s both $repeat;
+		}	
+		"""
+	end
+
+	box_style = guess == answer ? make_win_style : make_box_style
+
+	function make_box(i)
+		"""
+		<div class = inputbox id = "box$i"></div>
+		"""
+	end
+
+	restyle = if sizepct == 1
+		""""""
+	else
+		wordle_restyle(sizepct, cname)
+	end
+	
+	HTML("""
+	<span id = wordleoutput>
+		<div class="wordle-box $cname">
+			$(mapreduce(make_box, add_elements, 1:5))
+		</div>
+	<style>
+		$(mapreduce(make_base_animation, add_elements, 1:5))
+		$(mapreduce(box_style, add_elements, 1:5))
+	</style>
+	$restyle
 	</span>
 	""")
 end
@@ -236,81 +484,25 @@ show_pattern("while", "while"; repeat = "infinite")
 # ╔═╡ c4b86aad-67dd-43f5-8e6d-88cc9fd75e68
 show_pattern(testguess, "happy")
 
-# ╔═╡ da01b6d5-6c7d-49dc-933d-e9bf475d91a2
-function show_blank_squares(guess)
-	l = lastindex(guess)
-	function make_box(i)
-		"""
-		<div class = inputbox id = "box$i">$(i <= lastindex(guess) ? guess[i] : "")</div>
-		"""
-	end
-	HTML("""
-	<span id = wordleoutputblank>
-		<div class="wordle-box">
-			$(mapreduce(make_box, add_elements, 1:5))
-		</div>
-		<style>
-		#wordleoutputblank .inputbox {
-			background-color: rgba(0, 0, 0, 0);
-			$final_box_style
-			border: 1px solid gray;
-			font-family: "nyt-franklin";
-		}
-		#wordleoutputblank .inputbox#box$l {
-			animation: addletter 0.2s;
-		}
-		@keyframes addletter {
-			50% {font-size: 65px}
-		}
-		</style>
-	</span>
-	""")
-end
-
-# ╔═╡ 02274b6f-5a58-41e6-82e1-820c7f888764
-md"""
-## Wordle Input Element
-"""
-
-# ╔═╡ a0be7242-6f6e-4fdd-980e-3d75b39f21bf
-WordleInput(;default = "") = HTML("""
-<input maxlength=5 size=5 $(default != "" ? " value=$default " : "") style="text-transform:uppercase; font: bold 60px nyt-franklin;"></input>
-""")
-
-# ╔═╡ 2b1e631e-e56a-4514-b217-8c1a1b9d43c8
-@bind rawanswer confirm(WordleInput(default="apple"))
-
-# ╔═╡ 58cece7f-7b8f-4e33-b5b7-9205b140fc34
-if ismissing(rawanswer) || rawanswer == ""
-	answer = ""
-	md"""Submit a 5 letter word for the answer"""
-elseif occursin(r"^[A-Za-z]{5}$", rawanswer)
-	answer = rawanswer
-	md"""Answer successfully submitted as $answer"""
-else
-	answer = ""
-end
-
-# ╔═╡ c514ce23-2762-4e38-b181-accb7fac848c
-@bind guess WordleInput()
-
 # ╔═╡ 83967bd4-1e9f-4aa7-ab0b-2aa0fcab3229
 begin
 	if answer == ""
+		submit_guess = 0
 		md"""Waiting for answer"""
-	elseif occursin(r"[A-Za-z]{5}", guess)
-		@bind submit_guess CounterButton("Submit Guess")
-	else
+	elseif length(guess.word) < 5
+		submit_guess = 0
 		md"""Waiting for guess"""
+	else
+		@bind submit_guess CounterButton("Submit Guess")
 	end
 end
 
 # ╔═╡ 0c684bf3-b587-4c90-be22-097d129e99ac
-if length(guess) == 5 && (answer != "") && submit_guess > 0
+if submit_guess > 0
 	md"""
 	#### Showing Feedback
 	
-	$(show_pattern(guess, answer))
+	$(show_pattern(guess.word, answer))
 	"""
 else
 	feedback_message = answer == "" ? md"""#### Provide answer and submit guess to see feedback""" : md"""#### Submit guess to see feedback"""
@@ -321,18 +513,41 @@ else
 	"""
 end
 
+# ╔═╡ 61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
+md"""
+Select Feedback Value Range: $(@bind startrange NumberField(0:242, default=0)) $(@bind endrange NumberField(0:242, default = 242))
+"""
+
+# ╔═╡ 182437d7-a2e9-442b-b2b2-e506e439119a
+HTML("""
+<span class=testview>
+$(mapreduce(a -> show_pattern(a; sizepct = 0.13), add_elements, startrange:endrange))
+</span>
+
+<style>
+	.testview {
+		display: flex;
+		flex-wrap: wrap;
+	}
+</style>
+""")
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+AbstractPlutoDingetjes = "6e696c72-6542-2067-7265-42206c756150"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Transducers = "28d57a85-8fef-5791-bfe6-a80928e7c999"
 
 [compat]
+AbstractPlutoDingetjes = "~1.1.4"
 HypertextLiteral = "~0.9.4"
 PlutoUI = "~0.7.51"
 StaticArrays = "~1.5.25"
+Transducers = "~0.4.76"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -341,13 +556,28 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.0"
 manifest_format = "2.0"
-project_hash = "90dd0a960baba797ad452a5e103c4b6616d917be"
+project_hash = "2e61a7bd61c4b712b5c36219a4b968d609e9ce1d"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
 git-tree-sha1 = "8eaf9f1b4921132a4cff3f36a1d9ba923b14a481"
 uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.1.4"
+
+[[deps.Adapt]]
+deps = ["LinearAlgebra", "Requires"]
+git-tree-sha1 = "76289dc51920fdc6e0013c872ba9551d54961c24"
+uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+version = "3.6.2"
+weakdeps = ["StaticArrays"]
+
+    [deps.Adapt.extensions]
+    AdaptStaticArraysExt = "StaticArrays"
+
+[[deps.ArgCheck]]
+git-tree-sha1 = "a3a402a35a2f7e0b87828ccabbd5ebfbebe356b4"
+uuid = "dce04be8-c92d-5529-be00-80e4d2c0e197"
+version = "2.3.0"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -356,8 +586,33 @@ version = "1.1.1"
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
+[[deps.BangBang]]
+deps = ["Compat", "ConstructionBase", "InitialValues", "LinearAlgebra", "Requires", "Setfield", "Tables"]
+git-tree-sha1 = "54b00d1b93791f8e19e31584bd30f2cb6004614b"
+uuid = "198e06fe-97b7-11e9-32a5-e1d131e6ad66"
+version = "0.3.38"
+
+    [deps.BangBang.extensions]
+    BangBangChainRulesCoreExt = "ChainRulesCore"
+    BangBangDataFramesExt = "DataFrames"
+    BangBangStaticArraysExt = "StaticArrays"
+    BangBangStructArraysExt = "StructArrays"
+    BangBangTypedTablesExt = "TypedTables"
+
+    [deps.BangBang.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+    StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
+    TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
+
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.Baselet]]
+git-tree-sha1 = "aebf55e6d7795e02ca500a689d326ac979aaf89e"
+uuid = "9718e550-a3fa-408a-8086-8db961cd8217"
+version = "0.1.1"
 
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
@@ -365,14 +620,68 @@ git-tree-sha1 = "eb7f0f8307f71fac7c606984ea5fb2817275d6e4"
 uuid = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
 version = "0.11.4"
 
+[[deps.Compat]]
+deps = ["UUIDs"]
+git-tree-sha1 = "7a60c856b9fa189eb34f5f8a6f6b5529b7942957"
+uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
+version = "4.6.1"
+weakdeps = ["Dates", "LinearAlgebra"]
+
+    [deps.Compat.extensions]
+    CompatLinearAlgebraExt = "LinearAlgebra"
+
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.0.2+0"
 
+[[deps.CompositionsBase]]
+git-tree-sha1 = "802bb88cd69dfd1509f6670416bd4434015693ad"
+uuid = "a33af91c-f02d-484b-be07-31d278c5ca2b"
+version = "0.1.2"
+
+    [deps.CompositionsBase.extensions]
+    CompositionsBaseInverseFunctionsExt = "InverseFunctions"
+
+    [deps.CompositionsBase.weakdeps]
+    InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
+
+[[deps.ConstructionBase]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "738fec4d684a9a6ee9598a8bfee305b26831f28c"
+uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
+version = "1.5.2"
+
+    [deps.ConstructionBase.extensions]
+    ConstructionBaseIntervalSetsExt = "IntervalSets"
+    ConstructionBaseStaticArraysExt = "StaticArrays"
+
+    [deps.ConstructionBase.weakdeps]
+    IntervalSets = "8197267c-284f-5f27-9208-e0e47529a953"
+    StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[[deps.DataAPI]]
+git-tree-sha1 = "8da84edb865b0b5b0100c0666a9bc9a0b71c553c"
+uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
+version = "1.15.0"
+
+[[deps.DataValueInterfaces]]
+git-tree-sha1 = "bfc1187b79289637fa0ef6d4436ebdfe6905cbd6"
+uuid = "e2d170a0-9d28-54be-80f0-106bbe20a464"
+version = "1.0.0"
+
 [[deps.Dates]]
 deps = ["Printf"]
 uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[deps.DefineSingletons]]
+git-tree-sha1 = "0fba8b706d0178b4dc7fd44a96a92382c9065c2c"
+uuid = "244e2a9f-e319-4986-a169-4d1fe445cd52"
+version = "0.1.2"
+
+[[deps.Distributed]]
+deps = ["Random", "Serialization", "Sockets"]
+uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
@@ -387,6 +696,10 @@ deps = ["Statistics"]
 git-tree-sha1 = "335bfdceacc84c5cdf16aadc768aa5ddfc5383cc"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.4"
+
+[[deps.Future]]
+deps = ["Random"]
+uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[deps.Hyperscript]]
 deps = ["Test"]
@@ -406,9 +719,19 @@ git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.2.2"
 
+[[deps.InitialValues]]
+git-tree-sha1 = "4da0f88e9a39111c2fa3add390ab15f3a44f3ca3"
+uuid = "22cec73e-a1b8-11e9-2c92-598750a2cf9c"
+version = "0.3.1"
+
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
+
+[[deps.IteratorInterfaceExtensions]]
+git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
+uuid = "82899510-4779-5014-852e-03e436cf321d"
+version = "1.0.0"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -450,6 +773,12 @@ git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "0.1.4"
 
+[[deps.MacroTools]]
+deps = ["Markdown", "Random"]
+git-tree-sha1 = "42324d08725e200c23d4dfb549e0d5d89dede2d2"
+uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+version = "0.5.10"
+
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
@@ -458,6 +787,12 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 version = "2.28.2+0"
+
+[[deps.MicroCollections]]
+deps = ["BangBang", "InitialValues", "Setfield"]
+git-tree-sha1 = "629afd7d10dbc6935ec59b32daeb33bc4460a42e"
+uuid = "128add7d-3638-4c79-886c-908ea0c25c34"
+version = "0.1.4"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
@@ -474,6 +809,11 @@ version = "1.2.0"
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.21+4"
+
+[[deps.OrderedCollections]]
+git-tree-sha1 = "d321bf2de576bf25ec4d3e4360faca399afca282"
+uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
+version = "1.6.0"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
@@ -521,6 +861,12 @@ git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
 
+[[deps.Requires]]
+deps = ["UUIDs"]
+git-tree-sha1 = "838a3a4188e2ded87a4f9f184b4b0d78a1e91cb7"
+uuid = "ae029012-a4dd-5104-9daa-d747884805df"
+version = "1.3.0"
+
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 version = "0.7.0"
@@ -528,12 +874,24 @@ version = "0.7.0"
 [[deps.Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 
+[[deps.Setfield]]
+deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
+git-tree-sha1 = "e2cc6d8c88613c05e1defb55170bf5ff211fbeac"
+uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+version = "1.1.1"
+
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
 [[deps.SparseArrays]]
 deps = ["Libdl", "LinearAlgebra", "Random", "Serialization", "SuiteSparse_jll"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[[deps.SplittablesBase]]
+deps = ["Setfield", "Test"]
+git-tree-sha1 = "e08a62abc517eb79667d0a29dc08a3b589516bb5"
+uuid = "171d559e-b47b-412a-8079-5efa626c420e"
+version = "0.1.15"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "StaticArraysCore", "Statistics"]
@@ -561,6 +919,18 @@ deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 version = "1.0.3"
 
+[[deps.TableTraits]]
+deps = ["IteratorInterfaceExtensions"]
+git-tree-sha1 = "c06b2f539df1c6efa794486abfb6ed2022561a39"
+uuid = "3783bdb8-4a98-5b6b-af9a-565f29a5fe9c"
+version = "1.0.1"
+
+[[deps.Tables]]
+deps = ["DataAPI", "DataValueInterfaces", "IteratorInterfaceExtensions", "LinearAlgebra", "OrderedCollections", "TableTraits", "Test"]
+git-tree-sha1 = "1544b926975372da01227b382066ab70e574a3ec"
+uuid = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+version = "1.10.1"
+
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
@@ -569,6 +939,12 @@ version = "1.10.0"
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[deps.Transducers]]
+deps = ["Adapt", "ArgCheck", "BangBang", "Baselet", "CompositionsBase", "DefineSingletons", "Distributed", "InitialValues", "Logging", "Markdown", "MicroCollections", "Requires", "Setfield", "SplittablesBase", "Tables"]
+git-tree-sha1 = "25358a5f2384c490e98abd565ed321ffae2cbb37"
+uuid = "28d57a85-8fef-5791-bfe6-a80928e7c999"
+version = "0.4.76"
 
 [[deps.Tricks]]
 git-tree-sha1 = "aadb748be58b492045b4f56166b5188aa63ce549"
@@ -627,6 +1003,9 @@ version = "17.4.0+0"
 # ╟─c514ce23-2762-4e38-b181-accb7fac848c
 # ╟─83967bd4-1e9f-4aa7-ab0b-2aa0fcab3229
 # ╟─0c684bf3-b587-4c90-be22-097d129e99ac
+# ╟─3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
+# ╟─61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
+# ╟─182437d7-a2e9-442b-b2b2-e506e439119a
 # ╟─bdf2524f-04a1-4ad4-9ba0-367e72e81994
 # ╠═bb7ee773-cd7e-4427-8cab-567410716dfb
 # ╠═a5ac89f2-0dde-42a3-96bb-9629c7b2a24e
@@ -639,10 +1018,20 @@ version = "17.4.0+0"
 # ╠═9f778262-c791-4957-a750-28c0392f39a9
 # ╠═37d4ce45-c3a0-4202-befd-099efc0a8493
 # ╠═042d38e6-edfc-4b08-81c5-497ce5c1eaee
+# ╠═4ce43a3b-afad-4f10-9ce4-0bc48d3de0c2
+# ╠═0dc1b5d6-f62e-44f6-875f-38873f337efc
+# ╠═332e3018-5134-4c6f-b7f8-3770a8ca2ba5
 # ╠═cf667532-40de-4a1e-9e26-9f458e7ded70
+# ╠═d07ecb11-b9b9-44ac-8b71-2efd18f19cde
 # ╠═594fb234-22c4-4dc2-818d-ec4b0525b3cd
+# ╠═c377589a-af21-42e9-9bdc-432442a8ccbc
+# ╠═c55a66aa-d993-4a77-9cb9-a8c7037de7fb
+# ╠═c6f8ad99-9200-4ff2-b0d5-e6ac7cb893c2
+# ╠═572bab4a-18e6-432b-8cc6-ece539a21142
 # ╠═da01b6d5-6c7d-49dc-933d-e9bf475d91a2
+# ╠═c9b7b336-032e-4597-a529-0df2f841f2cf
 # ╟─02274b6f-5a58-41e6-82e1-820c7f888764
-# ╠═a0be7242-6f6e-4fdd-980e-3d75b39f21bf
+# ╠═24327929-c8f5-45b2-80ad-c873daedf677
+# ╠═ca1cd33a-3d41-4878-8b95-7b7f44353695
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
