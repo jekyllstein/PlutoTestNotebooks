@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.25
+# v0.19.26
 
 using Markdown
 using InteractiveUtils
@@ -123,6 +123,11 @@ md"""
 ## Wordle Feedback Visualization
 """
 
+# ╔═╡ 851895b6-7538-4965-8d1c-da2a9732477c
+md"""
+### HTML Elements
+"""
+
 # ╔═╡ 9f778262-c791-4957-a750-28c0392f39a9
 const colorlookup = Dict([0x00 => "#3a3a3c", 0x01 => "#b59f3b", 0x02 => "#538d4e"])
 
@@ -181,11 +186,68 @@ const basewordlestyle = HTML(
 
 		.inputbox {
 			background-color: rgba(0, 0, 0, 0);
-			color: rgba(0, 0, 0, 0); 
+			$final_box_style;
+			border: 2px solid #3a3a3c;
+		}
+
+		@keyframes rowbounce {
+			0%,20% {transform: translateY(0)}
+			40% {transform: translateY(-.33em)}
+			50% {transform: translateY(0.05em)}
+			60% {transform: translateY(-0.15em)}
+			80% {transform: translateY(0.02em)}
+			100% {transform: translateY(0)}
+		}
+
+		@keyframes flipin {
+			0% {
+		        transform: rotateX(0)
+		    }
+		
+		    100% {
+		        transform: rotateX(-90deg)
+		    }
+		}
+
+		@keyframes flipout {
+		    0% {
+		        transform: rotateX(-90deg)
+		    }
+		
+		    100% {
+		        transform: rotateX(0)
+		    }
+		}
+
+		@keyframes addcolor0 {
+			from {border: 2px solid #3a3a3c;}
+			to {background-color: $(colorlookup[0]); border: 0px solid black;}
+		}
+		@keyframes addcolor1 {
+			from {border: 2px solid #3a3a3c;}
+			to {background-color: $(colorlookup[1]); border: 0px solid black;}
+		}
+		@keyframes addcolor2 {
+			from {border: 2px solid #3a3a3c;}
+			to {background-color: $(colorlookup[2]); border: 0px solid black;}
+		}
 		}
 	</style>
 	"""
 )
+
+# ╔═╡ c9b7b336-032e-4597-a529-0df2f841f2cf
+const inputstyle = HTML("""
+	<style>		
+	#wordleoutputblank .inputbox.anim {
+			animation: addletter 100ms;
+		}
+	@keyframes addletter {
+		0% {transform: scale(0.8); opacity: 0;}
+		40% {transform: scale(1.1); opacity: 1;}
+	}
+	</style>
+""")
 
 # ╔═╡ d07ecb11-b9b9-44ac-8b71-2efd18f19cde
 function wordle_restyle(f::Real, class::String) 
@@ -206,70 +268,8 @@ function wordle_restyle(f::Real, class::String)
 	"""
 end
 
-# ╔═╡ 594fb234-22c4-4dc2-818d-ec4b0525b3cd
-function show_pattern(guess, answer; sizepct = 1.0, repeat = 1)
-	feedback = get_feedback(guess, answer)
-	colors = [colorlookup[i] for i in feedback]
-
-	function make_base_animation(i)
-		"""
-		
-		@keyframes $guess$answer$i {
-			0% {transform: rotateX(90deg); background-color: rgba(0, 0, 0, 0); color: rgba(0, 0, 0, 0);}	
-			50% {transform: rotateX(0deg); background-color: $(colors[i]); $final_box_style}
-			100% {transform: rotateX(0deg); background-color: $(colors[i]); $final_box_style}
-		}
-		"""
-	end
-
-	function make_win_style(i)
-		"""
-		@keyframes $guess$answer$(i)2 {
-			0% {transform: translateY(0px);}
-			50% {transform: translateY(-.33em);}
-			75% {transform: translateY(0.2em);}
-			100% {transform: translateY(0px);}
-		}
-		.wordle-box.$guess$answer #box$i {
-			animation: $guess$answer$i 2s $(2*i/5)s both, $guess$answer$(i)2 0.7s $(2.1 + i/8)s ease-in-out $repeat;
-		}	
-		"""
-	end
-
-	function make_box_style(i)
-		"""
-		.wordle-box.$guess$answer #box$i {
-			animation: $guess$answer$i 2s $(2*i/5)s both $repeat;
-		}	
-		"""
-	end
-
-	box_style = guess == answer ? make_win_style : make_box_style
-
-	function make_box(i)
-		"""
-		<div class = inputbox id = "box$i">$(guess[i])</div>
-		"""
-	end
-	restyle = if sizepct == 1
-		""""""
-	else
-		wordle_restyle(sizepct, cname)
-	end
-
-	HTML("""
-	<span id = wordleoutput>
-		<div class="wordle-box $guess$answer">
-			$(mapreduce(make_box, add_elements, 1:5))
-		</div>
-	<style>
-		$(mapreduce(make_base_animation, add_elements, 1:5))
-		$(mapreduce(box_style, add_elements, 1:5))
-	</style>
-	$restyle
-	</span>
-	""")
-end
+# ╔═╡ a1dc9008-e61a-4298-ad7e-c5faf8df096c
+show_pattern(guess, answer; kwargs...) = show_pattern(get_feedback(guess, answer); boxcontent = i -> guess[i], kwargs...)
 
 # ╔═╡ c377589a-af21-42e9-9bdc-432442a8ccbc
 show_pattern(pnum::Integer; kwargs...) = show_pattern(digits(pnum, base=3, pad=5); kwargs...)
@@ -280,66 +280,54 @@ convert_bytes(v::AbstractVector{T}) where T <: Integer = enumerate(v) |> Map(a -
 # ╔═╡ 9e50e664-aabe-4b32-8ec9-f89307c7f95c
 const winfeedback = fill(EXACT, 5)
 
-# ╔═╡ 572bab4a-18e6-432b-8cc6-ece539a21142
-function show_pattern(feedback::AbstractVector{T}; sizepct = 1.0,  repeat = 1) where T <: Integer
+# ╔═╡ 594fb234-22c4-4dc2-818d-ec4b0525b3cd
+function show_pattern(feedback::AbstractVector{T}; boxcontent = i -> "", sizepct = 1.0, repeat = 1) where T <: Integer
 	colors = [colorlookup[i] for i in feedback]
-	cname = "a$(convert_bytes(feedback))" #class name can't start with a number
 
-	function make_base_animation(i)
-		"""
-		
-		@keyframes $cname$i {
-			0% {transform: rotateX(90deg); background-color: rgba(0, 0, 0, 0); color: rgba(0, 0, 0, 0);}	
-			50% {transform: rotateX(0deg); background-color: $(colors[i]); $final_box_style}
-			100% {transform: rotateX(0deg); background-color: $(colors[i]); $final_box_style}
-		}
-		"""
+	classname = string("a", hash(feedback), hash(boxcontent))
+
+	fliptime = "250ms"
+
+	function makeanimation(i)
+		delaytime = 100*(i-1)
+		if feedback == winfeedback
+			"""
+			.wordle-box.$classname #box$i {
+				animation: 	flipin $fliptime $(delaytime)ms ease-in, 
+							flipout $fliptime $(delaytime+250)ms ease-in,
+							addcolor$(feedback[i]) 500ms $(delaytime)ms forwards,
+							rowbounce 1000ms $(delaytime+600)ms $repeat;			
+			}
+			"""
+		else
+			"""
+			.wordle-box.$classname #box$i {
+				animation: 	flipin $fliptime $(delaytime)ms ease-in, 
+							flipout $fliptime $(delaytime+250)ms ease-in,
+							addcolor$(feedback[i]) 500ms $(delaytime)ms ease-in both;
+			}
+			"""
+		end
 	end
-
-	function make_win_style(i)
-		"""
-		@keyframes $cname$(i)2 {
-			0% {transform: translateY(0px);}
-			50% {transform: translateY(-.33em);}
-			75% {transform: translateY(0.2em);}
-			100% {transform: translateY(0px);}
-		}
-		.wordle-box.$cname #box$i {
-			animation: $cname$i 2s $(2*i/5)s both, $cname$(i)2 0.7s $(2.1 + i/8)s ease-in-out $repeat;
-		}	
-		"""
-	end
-
-	function make_box_style(i)
-		"""
-		.wordle-box.$cname #box$i {
-			animation: $cname$i 2s $(2*i/5)s both $repeat;
-		}	
-		"""
-	end
-
-	box_style = all(feedback .== winfeedback) ? make_win_style : make_box_style
 
 	function make_box(i)
 		"""
-		<div class = inputbox id = "box$i"></div>
+		<div class = inputbox id=box$i>$(boxcontent(i))</div>
 		"""
 	end
-
 	restyle = if sizepct == 1
 		""""""
 	else
-		wordle_restyle(sizepct, cname)
+		wordle_restyle(sizepct, classname)
 	end
-	
+
 	HTML("""
 	<span id = wordleoutput>
-		<div class="wordle-box $cname">
+		<div class="wordle-box $classname">
 			$(mapreduce(make_box, add_elements, 1:5))
 		</div>
 	<style>
-		$(mapreduce(make_base_animation, add_elements, 1:5))
-		$(mapreduce(box_style, add_elements, 1:5))
+		$(mapreduce(makeanimation, add_elements, 1:5))
 	</style>
 	$restyle
 	</span>
@@ -376,26 +364,6 @@ function show_blank_squares(guess)
 	""")
 end
 
-# ╔═╡ c9b7b336-032e-4597-a529-0df2f841f2cf
-const inputstyle = HTML("""
-	<style>
-	#wordleoutputblank .inputbox {
-			background-color: rgba(0, 0, 0, 0);
-			$final_box_style;
-			border: 1px solid gray;
-		}
-		
-	#wordleoutputblank .inputbox.anim {
-			animation: addletter 0.2s ease-in-out;
-		}
-	@keyframes addletter {
-		0% {transform: scale(1.0);}
-		50% {transform: scale(1.05);}
-		100% {transform: scale(1.0);}
-	}
-	</style>
-""")
-
 # ╔═╡ 02274b6f-5a58-41e6-82e1-820c7f888764
 md"""
 ## Wordle Input Element
@@ -416,7 +384,7 @@ begin
 	function Bonds.show(io::IO, m::MIME"text/html", input::WordleInput)
 		show(io, m, HTML("""
 		<span>
-		<input class=wordleinput type=text oninput="this.value = this.value.replace(/[^a-zA-Z]/, '')" maxlength=5 $(isempty(input.word) ? "" : "value=$(input.word)") size=5>
+		<input class=wordleinput type=text oninput="this.value = this.value.replace(/[^a-zA-Z]/, '')" maxlength=5 $(isempty(input.word) ? "" : "value=$(input.word)") size=7>
 		<style>
 			.wordleinput {
 				text-transform:uppercase;
@@ -505,7 +473,7 @@ if submit_guess > 0
 	md"""
 	#### Showing Feedback
 	
-	$(show_pattern(guess.word, answer))
+	$(show_pattern(guess2.word, answer))
 	"""
 else
 	feedback_message = answer == "" ? md"""#### Provide answer and submit guess to see feedback""" : md"""#### Submit guess to see feedback"""
@@ -518,13 +486,13 @@ end
 
 # ╔═╡ 61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
 md"""
-Select Feedback Value Range: $(@bind startrange NumberField(0:242, default=0)) $(@bind endrange NumberField(0:242, default = 242))
+Select Feedback Value Range: $(@bind startrange NumberField(0:242, default=0)) $(@bind endrange NumberField(0:242, default = 10))
 """
 
 # ╔═╡ 182437d7-a2e9-442b-b2b2-e506e439119a
 HTML("""
 <span class=testview>
-$(mapreduce(a -> show_pattern(a; sizepct = 0.13), add_elements, startrange:endrange))
+$(mapreduce(a -> show_pattern(a; sizepct = 0.25), add_elements, startrange:endrange))
 </span>
 
 <style>
@@ -1008,7 +976,7 @@ version = "17.4.0+0"
 # ╟─0c684bf3-b587-4c90-be22-097d129e99ac
 # ╟─3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
 # ╟─61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
-# ╠═182437d7-a2e9-442b-b2b2-e506e439119a
+# ╟─182437d7-a2e9-442b-b2b2-e506e439119a
 # ╟─bdf2524f-04a1-4ad4-9ba0-367e72e81994
 # ╠═bb7ee773-cd7e-4427-8cab-567410716dfb
 # ╠═a5ac89f2-0dde-42a3-96bb-9629c7b2a24e
@@ -1018,6 +986,7 @@ version = "17.4.0+0"
 # ╠═9a8e0ad9-b402-4b94-8a74-629861bc5999
 # ╠═dd76a2a5-f32c-4c10-b6a1-d690a31ae813
 # ╟─72d7a142-ac07-4dea-934e-7ad3e36f127b
+# ╟─851895b6-7538-4965-8d1c-da2a9732477c
 # ╠═9f778262-c791-4957-a750-28c0392f39a9
 # ╠═37d4ce45-c3a0-4202-befd-099efc0a8493
 # ╠═042d38e6-edfc-4b08-81c5-497ce5c1eaee
@@ -1025,15 +994,15 @@ version = "17.4.0+0"
 # ╠═0dc1b5d6-f62e-44f6-875f-38873f337efc
 # ╠═332e3018-5134-4c6f-b7f8-3770a8ca2ba5
 # ╠═cf667532-40de-4a1e-9e26-9f458e7ded70
+# ╠═c9b7b336-032e-4597-a529-0df2f841f2cf
 # ╠═d07ecb11-b9b9-44ac-8b71-2efd18f19cde
+# ╠═a1dc9008-e61a-4298-ad7e-c5faf8df096c
 # ╠═594fb234-22c4-4dc2-818d-ec4b0525b3cd
 # ╠═c377589a-af21-42e9-9bdc-432442a8ccbc
 # ╠═c55a66aa-d993-4a77-9cb9-a8c7037de7fb
 # ╠═c6f8ad99-9200-4ff2-b0d5-e6ac7cb893c2
 # ╠═9e50e664-aabe-4b32-8ec9-f89307c7f95c
-# ╠═572bab4a-18e6-432b-8cc6-ece539a21142
 # ╠═da01b6d5-6c7d-49dc-933d-e9bf475d91a2
-# ╠═c9b7b336-032e-4597-a529-0df2f841f2cf
 # ╟─02274b6f-5a58-41e6-82e1-820c7f888764
 # ╠═24327929-c8f5-45b2-80ad-c873daedf677
 # ╠═ca1cd33a-3d41-4878-8b95-7b7f44353695
