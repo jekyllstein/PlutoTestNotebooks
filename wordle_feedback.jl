@@ -166,7 +166,7 @@ const basewordlestyle = HTML(
 			align-items: center;
 			margin: calc(var(--container-width)/150);
 		}
-		.wordle-box * {
+		.inputbox {
 			display: inline-flex;
 			width: calc(var(--container-width)/5/1.1);
 			height: calc(var(--container-width)/5/1.1);
@@ -182,9 +182,6 @@ const basewordlestyle = HTML(
 			-webkit-font-smoothing: antialiased;
 			text-transform: uppercase;
 			font-size: calc(var(--container-width)/5/2.0); 
-		}
-
-		.inputbox {
 			background-color: rgba(0, 0, 0, 0);
 			$final_box_style;
 			border: 2px solid #3a3a3c;
@@ -239,7 +236,7 @@ const basewordlestyle = HTML(
 # ╔═╡ c9b7b336-032e-4597-a529-0df2f841f2cf
 const inputstyle = HTML("""
 	<style>		
-	#wordleoutputblank .inputbox.anim {
+	.inputbox.anim {
 			animation: addletter 100ms;
 		}
 	@keyframes addletter {
@@ -502,6 +499,77 @@ $(mapreduce(a -> show_pattern(a; sizepct = 0.25), add_elements, startrange:endra
 	}
 </style>
 """)
+
+# ╔═╡ 531a9553-3600-4f50-9708-802dd86414a9
+@bind testgrid HTML("""
+<span>
+<button id=resetgame>Reset</button>
+<div class = testinput>
+	$(mapreduce(a -> """<div class = "inputbox row$(a[1]) col$(a[2])"></div>""", add_elements, ((r, c) for r in 0:5 for c in 0:4)))
+</div>
+<style>
+	.testinput {
+		display: grid;
+		grid-template-columns: repeat(5, calc(var(--container-width)/5/1));
+		grid-template-rows: repeat(6, calc(var(--container-width)/5/1));
+	}
+</style>
+<script>
+	const reset = document.getElementById("resetgame");
+	reset.addEventListener("click", resetGame);
+	const span = currentScript.parentElement;
+	const game = document.getElementsByClassName("testinput")[0];
+	span.value = ["", "", "", "", ""];
+	document.addEventListener("keydown", handleKeyDown);
+	let col = -1;
+	let row = 0;
+	function handleKeyDown(e) {
+		let elems = document.getElementsByClassName("inputbox row"+row);
+		console.log(e.keyCode);
+		if (e.keyCode >= 65 && e.keyCode <= 90) {
+			col += 1;
+			if (col > 4) {
+				col = 4;
+			}
+			elems[col].innerHTML = e.key;
+			elems[col].classList.add("anim");
+		} else if (e.keyCode == 8) {
+			if (col > -1) {
+				elems[col].innerHTML = "";
+				elems[col].classList.remove("anim");
+			}
+			col -= 1;
+			if (col < -1) {
+				col = -1;
+			}
+		} else if (e.keyCode == 13 && col == 4 && elems[4].innerHTML != "") {
+			if (row < 5) {
+				row += 1;
+				for (let i = 0; i<5; i++) {
+					span.value[i] = elems[i].innerHTML;
+				}
+				span.dispatchEvent(new CustomEvent('input'));
+			}
+			col = -1;
+		}
+	}
+	function resetGame() {
+		col = -1;
+		row = 0;
+		for (const child of game.children) {
+			child.innerHTML = "";
+			child.classList.remove("anim");
+		}
+		span.value =  ["", "", "", "", ""];
+		span.dispatchEvent(new CustomEvent('input'));
+	}
+	
+</script>
+</span>
+""")
+
+# ╔═╡ 24a8babb-94bb-441d-9787-12d4d63e6a97
+testgrid
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1006,5 +1074,7 @@ version = "17.4.0+0"
 # ╟─02274b6f-5a58-41e6-82e1-820c7f888764
 # ╠═24327929-c8f5-45b2-80ad-c873daedf677
 # ╠═ca1cd33a-3d41-4878-8b95-7b7f44353695
+# ╠═24a8babb-94bb-441d-9787-12d4d63e6a97
+# ╠═531a9553-3600-4f50-9708-802dd86414a9
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
