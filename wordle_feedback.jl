@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.26
+# v0.19.25
 
 using Markdown
 using InteractiveUtils
@@ -22,6 +22,9 @@ end
 
 # ╔═╡ c6f8ad99-9200-4ff2-b0d5-e6ac7cb893c2
 using Transducers
+
+# ╔═╡ 67cfc7fc-704e-45a0-ae08-cfb6bb9227e3
+using HTTP
 
 # ╔═╡ 503b348a-f3af-11ed-043e-a93ac4f37a8e
 md"""
@@ -176,7 +179,6 @@ const basewordlestyle = HTML(
 			vertical-align: middle;	
 			font-family: "nyt-franklin", sans-serif;
 			font-weight: bold;
-			display: inline-flex;
 			box-sizing: border: box;
 			text-align: center;
 			-webkit-font-smoothing: antialiased;
@@ -237,11 +239,12 @@ const basewordlestyle = HTML(
 const inputstyle = HTML("""
 	<style>		
 	.inputbox.anim {
-			animation: addletter 100ms;
+			animation: addletter 100ms forwards;
 		}
 	@keyframes addletter {
 		0% {transform: scale(0.8); opacity: 0;}
 		40% {transform: scale(1.1); opacity: 1;}
+		100% {border-color: rgb(86, 87, 88);}
 	}
 	</style>
 """)
@@ -268,6 +271,40 @@ end
 # ╔═╡ a1dc9008-e61a-4298-ad7e-c5faf8df096c
 show_pattern(guess, answer; kwargs...) = show_pattern(get_feedback(guess, answer); boxcontent = i -> guess[i], kwargs...)
 
+# ╔═╡ 777b05a7-4a41-4324-85bf-8ef15601b068
+const fliptime = "250ms"
+
+# ╔═╡ 89603668-4ee2-4683-8364-b96381ce6498
+function makeanimationclass(fval::Integer, i::Integer, iswin::Bool)
+	delaytime = 100*i
+	if iswin
+		"""
+		.box$i.win {
+			animation: 	flipin $fliptime $(delaytime)ms ease-in, 
+						flipout $fliptime $(delaytime+250)ms ease-in,
+						addcolor2 500ms $(delaytime)ms forwards,
+						rowbounce 1000ms $(delaytime+600)ms;			
+			}
+		"""
+	else
+		"""
+		.box$i.feedback$fval {
+			animation: 	flipin $fliptime $(delaytime)ms ease-in, 
+						flipout $fliptime $(delaytime+250)ms ease-in,
+						addcolor$fval 500ms $(delaytime)ms ease-in both;
+		}
+		"""
+	end
+end
+
+# ╔═╡ 0f381eb4-b319-4440-b7b9-11c9705d542d
+# create animation classes for every possible square
+const boxanimations = HTML("""
+<style>
+$(mapreduce(a -> makeanimationclass(a...), add_elements, ((fval, i, iswin) for fval in [0, 1, 2] for i in 0:4 for iswin in [true, false])))
+</style>
+""")
+
 # ╔═╡ c377589a-af21-42e9-9bdc-432442a8ccbc
 show_pattern(pnum::Integer; kwargs...) = show_pattern(digits(pnum, base=3, pad=5); kwargs...)
 
@@ -283,7 +320,7 @@ function show_pattern(feedback::AbstractVector{T}; boxcontent = i -> "", sizepct
 
 	classname = string("a", hash(feedback), hash(boxcontent))
 
-	fliptime = "250ms"
+	
 
 	function makeanimation(i)
 		delaytime = 100*(i-1)
@@ -500,12 +537,24 @@ $(mapreduce(a -> show_pattern(a; sizepct = 0.25), add_elements, startrange:endra
 </style>
 """)
 
+# ╔═╡ 549678a0-3d63-40e5-b702-ae336f3ece3b
+possiblewords = String(HTTP.get("https://raw.githubusercontent.com/3b1b/videos/master/_2022/wordle/data/possible_words.txt").body) |> a -> split(a, '\n')
+
+# ╔═╡ ab28d817-54d3-49f8-b8b1-753e06f6708a
+@bind newgame Button()
+
+# ╔═╡ 016671f9-24cd-4cd0-88e0-4cc819b32355
+begin
+	newgame
+	trueword = rand(possiblewords)
+end
+
 # ╔═╡ 531a9553-3600-4f50-9708-802dd86414a9
 @bind testgrid HTML("""
 <span>
 <button id=resetgame>Reset</button>
 <div class = testinput>
-	$(mapreduce(a -> """<div class = "inputbox row$(a[1]) col$(a[2])"></div>""", add_elements, ((r, c) for r in 0:5 for c in 0:4)))
+	$(mapreduce(a -> """<div class = "inputbox row$(a[1]) box$(a[2])"></div>""", add_elements, ((r, c) for r in 0:5 for c in 0:4)))
 </div>
 <style>
 	.testinput {
@@ -519,62 +568,177 @@ $(mapreduce(a -> show_pattern(a; sizepct = 0.25), add_elements, startrange:endra
 	reset.addEventListener("click", resetGame);
 	const span = currentScript.parentElement;
 	const game = document.getElementsByClassName("testinput")[0];
-	span.value = ["", "", "", "", ""];
 	document.addEventListener("keydown", handleKeyDown);
 	let col = -1;
 	let row = 0;
+	span.value = [row, ["", "", "", "", ""]];
 	function handleKeyDown(e) {
-		let elems = document.getElementsByClassName("inputbox row"+row);
-		console.log(e.keyCode);
-		if (e.keyCode >= 65 && e.keyCode <= 90) {
-			col += 1;
-			if (col > 4) {
-				col = 4;
-			}
-			elems[col].innerHTML = e.key;
-			elems[col].classList.add("anim");
-		} else if (e.keyCode == 8) {
-			if (col > -1) {
-				elems[col].innerHTML = "";
-				elems[col].classList.remove("anim");
-			}
-			col -= 1;
-			if (col < -1) {
-				col = -1;
-			}
-		} else if (e.keyCode == 13 && col == 4 && elems[4].innerHTML != "") {
-			if (row < 5) {
-				row += 1;
-				for (let i = 0; i<5; i++) {
-					span.value[i] = elems[i].innerHTML;
+		if (row == 6) {
+			console.log("game lost");
+		}
+		else if (document.getElementsByClassName("inputbox row"+Math.max(0, row-1))[0].classList.contains("win")) {
+			console.log("game won");
+		}
+		else {
+			let elems = document.getElementsByClassName("inputbox row"+row);
+			console.log(e.keyCode);
+			if (e.keyCode >= 65 && e.keyCode <= 90) {
+				col += 1;
+				if (col > 4) {
+					col = 4;
 				}
+				elems[col].innerHTML = e.key;
+				elems[col].classList.add("anim");
+			} else if (e.keyCode == 8) {
+				if (col > -1) {
+					elems[col].innerHTML = "";
+					elems[col].classList.remove("anim");
+				}
+				col -= 1;
+				if (col < -1) {
+					col = -1;
+				}
+			} else if (e.keyCode == 13 && col == 4 && elems[4].innerHTML != "") {
+				for (let i = 0; i<5; i++) {
+					span.value[1][i] = elems[i].innerHTML;
+				}
+				col = -1;
+				span.value[0] = row;
 				span.dispatchEvent(new CustomEvent('input'));
+				row += 1;
 			}
-			col = -1;
 		}
 	}
+
 	function resetGame() {
 		col = -1;
 		row = 0;
 		for (const child of game.children) {
 			child.innerHTML = "";
 			child.classList.remove("anim");
+			child.classList.remove("feedback0");
+			child.classList.remove("feedback1");
+			child.classList.remove("feedback2");
+			child.classList.remove("win");
 		}
-		span.value =  ["", "", "", "", ""];
+		span.value =  [0, ["", "", "", "", ""]];
 		span.dispatchEvent(new CustomEvent('input'));
+		game.classList.remove("gamewon");
+		game.classList.remove("gamelost");
+		reset.blur();
 	}
 	
 </script>
 </span>
 """)
 
-# ╔═╡ 24a8babb-94bb-441d-9787-12d4d63e6a97
+# ╔═╡ 7fd84c6c-11d8-44c6-b0b0-8cf954651927
 testgrid
+
+# ╔═╡ 369cc5bd-8a0a-41af-98a0-73731cf6decf
+if testgrid[2][1] != ""
+	guessfeedback = get_feedback(SVector{5, Char}(lowercase(Char(a[1])) for a in testgrid[2]), SVector{5, Char}(a for a in trueword))
+
+	jsaddflip(i) = add_elements("""elems[$i].classList.add("feedback$(guessfeedback[i+1])");""", """elems[$i].classList.remove("anim");""")
+
+	jsaddwin(i) = add_elements("""elems[$i].classList.add("win")""", """elems[$i].classList.remove("anim");""")
+
+	f = guessfeedback == winfeedback ? jsaddwin : jsaddflip
+	jsblock =mapreduce(f, add_elements, 0:4)
+
+	outcomeclass = if guessfeedback == winfeedback
+		"""document.getElementsByClassName("testinput")[0].classList.add("gamewon");"""
+	elseif testgrid[1] == 5
+		"""document.getElementsByClassName("testinput")[0].classList.add("gamelost");"""
+	else
+		""""""
+	end
+	
+	HTML("""
+		<script>
+			let elems = document.getElementsByClassName("inputbox row"+$(testgrid[1]));
+			$jsblock
+			$outcomeclass
+		</script>
+	""")
+end
+
+# ╔═╡ 26477fae-cf0f-41e1-92fc-5e2bfd7ff870
+HTML("""
+<style>
+	.gamewon::before {
+		content: '';
+		position: absolute;
+		width: calc(var(--container-width)*0.98);
+		height: calc(var(--container-width)*1.18);
+		animation: winoverlay 1s 1.5s forwards;
+		
+	}
+	.gamewon::after {
+		content: '';
+		position: absolute;
+		width: calc(var(--container-width)*0.98);
+		height: calc(var(--container-width)*1.18);
+		font-family: "nyt-franklin", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/2.0); 
+		color: white;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		animation: winmessage 1s 1.5s forwards linear;
+	}
+	@keyframes winmessage {
+		0% {transform: scale(0.8);  transform: rotate(0deg);}
+		25% {transform: rotate(180deg);}
+		50% { transform: scale(2.0); transform: rotate(360deg);}
+		75% {transform: rotate(540deg);}
+		100% { 	content: "Game Won!"; transform: rotate(720deg);}
+	}
+
+	@keyframes winoverlay {
+		100% { background-color: rgba(50, 50, 50, 0.8);}
+	}
+
+	.gamelost::before {
+		content: '';
+		position: absolute;
+		width: calc(var(--container-width)*0.99);
+		height: calc(var(--container-width)*1.19);
+		animation: loseoverlay 1s 1.5s forwards;
+		
+	}
+	.gamelost::after {
+		content: '';
+		position: absolute;
+		font-family: "nyt-franklin", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/2.0); 
+		color: red;
+		animation: losemessage 2s 1.5s forwards ease;
+	}
+	@keyframes losemessage {
+		0%: {translate: calc(var(--container-width)/7) 0;}
+		25% {translate: calc(var(--container-width)/7) calc(var(--container-width)*1.05);}
+		50% {translate: calc(var(--container-width)/7) calc(var(--container-width)*.5);}
+		100% {translate: calc(var(--container-width)/7) calc(var(--container-width)*1.05); content: 'Game Lost :(';}
+	}
+
+	@keyframes loseoverlay {
+		100% { background-color: rgba(20, 20, 20, 0.9);}
+	}
+</style>
+""")
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 AbstractPlutoDingetjes = "6e696c72-6542-2067-7265-42206c756150"
+HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -583,6 +747,7 @@ Transducers = "28d57a85-8fef-5791-bfe6-a80928e7c999"
 
 [compat]
 AbstractPlutoDingetjes = "~1.1.4"
+HTTP = "~1.9.5"
 HypertextLiteral = "~0.9.4"
 PlutoUI = "~0.7.51"
 StaticArrays = "~1.5.25"
@@ -595,7 +760,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.0"
 manifest_format = "2.0"
-project_hash = "2e61a7bd61c4b712b5c36219a4b968d609e9ce1d"
+project_hash = "edb04ad8a8fc99c27c4e29094f9187996d360c68"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -653,6 +818,17 @@ git-tree-sha1 = "aebf55e6d7795e02ca500a689d326ac979aaf89e"
 uuid = "9718e550-a3fa-408a-8086-8db961cd8217"
 version = "0.1.1"
 
+[[deps.BitFlags]]
+git-tree-sha1 = "43b1a4a8f797c1cddadf60499a8a077d4af2cd2d"
+uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
+version = "0.1.7"
+
+[[deps.CodecZlib]]
+deps = ["TranscodingStreams", "Zlib_jll"]
+git-tree-sha1 = "9c209fb7536406834aa938fb149964b985de6c83"
+uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
+version = "0.7.1"
+
 [[deps.ColorTypes]]
 deps = ["FixedPointNumbers", "Random"]
 git-tree-sha1 = "eb7f0f8307f71fac7c606984ea5fb2817275d6e4"
@@ -684,6 +860,12 @@ version = "0.1.2"
 
     [deps.CompositionsBase.weakdeps]
     InverseFunctions = "3587e190-3f89-42d0-90ee-14403ec27112"
+
+[[deps.ConcurrentUtilities]]
+deps = ["Serialization", "Sockets"]
+git-tree-sha1 = "96d823b94ba8d187a6d8f0826e731195a74b90e9"
+uuid = "f0e56b4a-5159-44fe-b623-3e5288b988bb"
+version = "2.2.0"
 
 [[deps.ConstructionBase]]
 deps = ["LinearAlgebra"]
@@ -740,6 +922,12 @@ version = "0.8.4"
 deps = ["Random"]
 uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
+[[deps.HTTP]]
+deps = ["Base64", "CodecZlib", "ConcurrentUtilities", "Dates", "Logging", "LoggingExtras", "MbedTLS", "NetworkOptions", "OpenSSL", "Random", "SimpleBufferStream", "Sockets", "URIs", "UUIDs"]
+git-tree-sha1 = "ba9eca9f8bdb787c6f3cf52cb4a404c0e349a0d1"
+uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
+version = "1.9.5"
+
 [[deps.Hyperscript]]
 deps = ["Test"]
 git-tree-sha1 = "8d511d5b81240fc8e6802386302675bdf47737b9"
@@ -771,6 +959,12 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 git-tree-sha1 = "a3f24677c21f5bbe9d2a714f95dcd58337fb2856"
 uuid = "82899510-4779-5014-852e-03e436cf321d"
 version = "1.0.0"
+
+[[deps.JLLWrappers]]
+deps = ["Preferences"]
+git-tree-sha1 = "abc9885a7ca2052a736a600f7fa66209f96506e1"
+uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
+version = "1.4.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Mmap", "Parsers", "Unicode"]
@@ -807,6 +1001,12 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
+[[deps.LoggingExtras]]
+deps = ["Dates", "Logging"]
+git-tree-sha1 = "cedb76b37bc5a6c702ade66be44f831fa23c681e"
+uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
+version = "1.0.0"
+
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
@@ -821,6 +1021,12 @@ version = "0.5.10"
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
+
+[[deps.MbedTLS]]
+deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "Random", "Sockets"]
+git-tree-sha1 = "03a9b9718f5682ecb107ac9f7308991db4ce395b"
+uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
+version = "1.1.7"
 
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -848,6 +1054,18 @@ version = "1.2.0"
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 version = "0.3.21+4"
+
+[[deps.OpenSSL]]
+deps = ["BitFlags", "Dates", "MozillaCACerts_jll", "OpenSSL_jll", "Sockets"]
+git-tree-sha1 = "51901a49222b09e3743c65b8847687ae5fc78eb2"
+uuid = "4d8831e6-92b7-49fb-bdf8-b643e874388c"
+version = "1.4.1"
+
+[[deps.OpenSSL_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "6cc6366a14dbe47e5fc8f3cbe2816b1185ef5fc4"
+uuid = "458c3c95-2e84-50aa-8efc-19380b2a3a95"
+version = "3.0.8+0"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "d321bf2de576bf25ec4d3e4360faca399afca282"
@@ -919,6 +1137,11 @@ git-tree-sha1 = "e2cc6d8c88613c05e1defb55170bf5ff211fbeac"
 uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 version = "1.1.1"
 
+[[deps.SimpleBufferStream]]
+git-tree-sha1 = "874e8867b33a00e784c8a7e4b60afe9e037b74e1"
+uuid = "777ac1f9-54b0-4bf8-805c-2214025038e7"
+version = "1.1.0"
+
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
@@ -978,6 +1201,12 @@ version = "1.10.0"
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[deps.TranscodingStreams]]
+deps = ["Random", "Test"]
+git-tree-sha1 = "9a6ae7ed916312b41236fcef7e0af564ef934769"
+uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
+version = "0.9.13"
 
 [[deps.Transducers]]
 deps = ["Adapt", "ArgCheck", "BangBang", "Baselet", "CompositionsBase", "DefineSingletons", "Distributed", "InitialValues", "Logging", "Markdown", "MicroCollections", "Requires", "Setfield", "SplittablesBase", "Tables"]
@@ -1061,10 +1290,13 @@ version = "17.4.0+0"
 # ╠═4ce43a3b-afad-4f10-9ce4-0bc48d3de0c2
 # ╠═0dc1b5d6-f62e-44f6-875f-38873f337efc
 # ╠═332e3018-5134-4c6f-b7f8-3770a8ca2ba5
+# ╠═89603668-4ee2-4683-8364-b96381ce6498
+# ╠═0f381eb4-b319-4440-b7b9-11c9705d542d
 # ╠═cf667532-40de-4a1e-9e26-9f458e7ded70
 # ╠═c9b7b336-032e-4597-a529-0df2f841f2cf
 # ╠═d07ecb11-b9b9-44ac-8b71-2efd18f19cde
 # ╠═a1dc9008-e61a-4298-ad7e-c5faf8df096c
+# ╠═777b05a7-4a41-4324-85bf-8ef15601b068
 # ╠═594fb234-22c4-4dc2-818d-ec4b0525b3cd
 # ╠═c377589a-af21-42e9-9bdc-432442a8ccbc
 # ╠═c55a66aa-d993-4a77-9cb9-a8c7037de7fb
@@ -1074,7 +1306,13 @@ version = "17.4.0+0"
 # ╟─02274b6f-5a58-41e6-82e1-820c7f888764
 # ╠═24327929-c8f5-45b2-80ad-c873daedf677
 # ╠═ca1cd33a-3d41-4878-8b95-7b7f44353695
-# ╠═24a8babb-94bb-441d-9787-12d4d63e6a97
+# ╠═016671f9-24cd-4cd0-88e0-4cc819b32355
+# ╠═67cfc7fc-704e-45a0-ae08-cfb6bb9227e3
+# ╠═549678a0-3d63-40e5-b702-ae336f3ece3b
+# ╠═7fd84c6c-11d8-44c6-b0b0-8cf954651927
+# ╟─ab28d817-54d3-49f8-b8b1-753e06f6708a
 # ╠═531a9553-3600-4f50-9708-802dd86414a9
+# ╠═369cc5bd-8a0a-41af-98a0-73731cf6decf
+# ╠═26477fae-cf0f-41e1-92fc-5e2bfd7ff870
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
