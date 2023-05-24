@@ -669,16 +669,16 @@ HTML("""
 	.gamewon::before {
 		content: '';
 		position: absolute;
-		width: calc(var(--container-width)*0.98);
-		height: calc(var(--container-width)*1.18);
+		width: calc(var(--container-width)*0.99);
+		height: calc(var(--container-width)*1.19);
 		animation: winoverlay 1s 1.5s forwards;
 		
 	}
 	.gamewon::after {
 		content: '';
 		position: absolute;
-		width: calc(var(--container-width)*0.98);
-		height: calc(var(--container-width)*1.18);
+		width: calc(var(--container-width)*0.99);
+		height: calc(var(--container-width)*1.19);
 		font-family: "nyt-franklin", sans-serif;
 		font-weight: bold;
 		-webkit-font-smoothing: antialiased;
