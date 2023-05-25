@@ -159,7 +159,7 @@ const basewordlestyle = HTML(
 	"""
 	<style>
 		:root {
-			--container-width: min(600px, 90vw);
+			--container-width: min(500px, 90vw);
 		}
 		.wordle-box {
 			display: flex;
@@ -218,6 +218,15 @@ const basewordlestyle = HTML(
 		    }
 		}
 
+		$(mapreduce(add_elements, 0:2) do i
+			"""
+			.letter.feedback$i {
+				background-color: $(colorlookup[i]);
+			}
+			"""
+		end)
+
+		
 		@keyframes addcolor0 {
 			from {border: 2px solid #3a3a3c;}
 			to {background-color: $(colorlookup[0]); border: 0px solid black;}
@@ -234,6 +243,89 @@ const basewordlestyle = HTML(
 	</style>
 	"""
 )
+
+# ╔═╡ 26477fae-cf0f-41e1-92fc-5e2bfd7ff870
+const endgame_styles = HTML("""
+<style>
+	.gamewon::before {
+		content: '';
+		position: absolute;
+		width: calc(var(--container-width)*0.984);
+		height: calc(var(--container-width)*1.184);
+		animation: winoverlay 1s forwards;
+		
+	}
+	.gamewon::after {
+		content: '';
+		position: absolute;
+		width: calc(var(--container-width)*0.984);
+		height: calc(var(--container-width)*1.184);
+		font-family: "nyt-franklin", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/2.0); 
+		color: white;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		animation: winmessage 1s forwards linear;
+	}
+	@keyframes winmessage {
+		0% {content: "Game Won!"; transform: scale(0.8);  transform: rotate(0deg);}
+		25% {transform: rotate(180deg);}
+		50% { transform: scale(2.0); transform: rotate(360deg);}
+		75% {transform: rotate(540deg);}
+		100% { 	content: "Game Won!"; transform: rotate(720deg);}
+	}
+
+	.gamewon:hover::after {
+		animation: repeatwin 2s linear infinite;
+	}
+
+	@keyframes repeatwin {
+		0% {content: "Game Won!"; transform: scale(0.8);  transform: rotate(0deg);}
+		25% {transform: rotate(180deg);}
+		50% { transform: scale(2.0); transform: rotate(360deg);}
+		75% {transform: rotate(540deg);}
+		100% { 	content: "Game Won!"; transform: rotate(720deg);}
+	}
+
+	@keyframes winoverlay {
+		100% { background-color: rgba(50, 50, 50, 0.8);}
+	}
+
+	.gamelost::before {
+		content: 'Hover to See Word';
+		position: absolute;
+		width: calc(var(--container-width)*0.984);
+		height: calc(var(--container-width)*1.184);
+		animation: loseoverlay 1s forwards;
+	}
+
+	.gamelost::after {
+		content: '';
+		position: absolute;
+		font-family: "nyt-franklin", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/2.0); 
+		color: red;
+		animation: losemessage 2s forwards ease;
+	}
+	@keyframes losemessage {
+		0%: {content: ''; translate: calc(var(--container-width)/7) 0;}
+		25% {translate: calc(var(--container-width)/7) calc(var(--container-width)*1.05);}
+		50% {translate: calc(var(--container-width)/7) calc(var(--container-width)*.5);}
+		100% {translate: calc(var(--container-width)/7) calc(var(--container-width)*1.05); content: 'Game Lost :(';}
+	}
+
+	@keyframes loseoverlay {
+		100% { background-color: rgba(20, 20, 20, 0.9);}
+	}
+</style>
+""")
 
 # ╔═╡ c9b7b336-032e-4597-a529-0df2f841f2cf
 const inputstyle = HTML("""
@@ -540,38 +632,91 @@ $(mapreduce(a -> show_pattern(a; sizepct = 0.25), add_elements, startrange:endra
 # ╔═╡ 549678a0-3d63-40e5-b702-ae336f3ece3b
 possiblewords = String(HTTP.get("https://raw.githubusercontent.com/3b1b/videos/master/_2022/wordle/data/possible_words.txt").body) |> a -> split(a, '\n')
 
-# ╔═╡ ab28d817-54d3-49f8-b8b1-753e06f6708a
-@bind newgame Button()
+# ╔═╡ 1440b947-f270-4a6e-87da-86bd3928c1d4
+md"""
+## Wordle Game
+"""
 
-# ╔═╡ 016671f9-24cd-4cd0-88e0-4cc819b32355
-begin
-	newgame
-	trueword = rand(possiblewords)
+# ╔═╡ 40d60cb9-5fd6-4e30-9efe-e0413ede03b6
+function makelettersquare(c::Char)
+	"""
+	<div class="letter $c">$c</div>
+	"""
 end
 
-# ╔═╡ 531a9553-3600-4f50-9708-802dd86414a9
-@bind testgrid HTML("""
-<span>
+# ╔═╡ 76aa860d-fa1f-472c-860e-5cb496ad9853
+function makeWordleGame(wordindex::Integer = rand(1:length(possiblewords)))
+	HTML("""
+<span class = "wordle-game">
+<div class = "buttons">
 <button id=resetgame>Reset</button>
+<button id=newGame>New Game</button>
+</div>
 <div class = testinput>
 	$(mapreduce(a -> """<div class = "inputbox row$(a[1]) box$(a[2])"></div>""", add_elements, ((r, c) for r in 0:5 for c in 0:4)))
 </div>
+<div class="letterGrid">
+	$(mapreduce(makelettersquare, add_elements, 'a':'z'))
+</div>
 <style>
+	.buttons {
+		width: var(--container-width);
+		margin: 5px;
+		display: flex;
+		justify-content: left;
+	}
+	.buttons * {
+		font-size: 1em;
+	}
+	.wordle-game {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
 	.testinput {
 		display: grid;
 		grid-template-columns: repeat(5, calc(var(--container-width)/5/1));
 		grid-template-rows: repeat(6, calc(var(--container-width)/5/1));
 	}
+		.letterGrid {
+			display: grid;
+			grid-template-columns: repeat(10, auto);
+			column-gap: calc(var(--container-width)/130);
+			row-gap: calc(var(--container-width)/130);
+			justify-content: center;
+		}
+		.letter.u {
+			grid-column-start: 3;
+		}
+		.letter {
+			border: 2px solid black;
+			aspect-ratio: 1/1;
+			height: calc(var(--container-width)/13);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: rgb(110, 110, 110);
+			border-radius: 20%;
+			font-family: "nyt-franklin", sans-serif;
+			font-weight: bold;
+			-webkit-font-smoothing: antialiased;
+			text-transform: uppercase;
+			font-size: calc(var(--container-width)/5/6.0); 
+		}
 </style>
 <script>
 	const reset = document.getElementById("resetgame");
+	const newGame = document.getElementById("newGame");
 	reset.addEventListener("click", resetGame);
+	newGame.addEventListener("click", makeNewGame);
 	const span = currentScript.parentElement;
 	const game = document.getElementsByClassName("testinput")[0];
+	const letters = document.getElementsByClassName("letter");
 	document.addEventListener("keydown", handleKeyDown);
 	let col = -1;
 	let row = 0;
-	span.value = [row, ["", "", "", "", ""]];
+	span.value = [row, ["", "", "", "", ""], $wordindex];
+	span.dispatchEvent(new CustomEvent('input'));
 	function handleKeyDown(e) {
 		if (row == 6) {
 			console.log("game lost");
@@ -610,7 +755,7 @@ end
 		}
 	}
 
-	function resetGame() {
+	function resetClasses() {
 		col = -1;
 		row = 0;
 		for (const child of game.children) {
@@ -621,118 +766,115 @@ end
 			child.classList.remove("feedback2");
 			child.classList.remove("win");
 		}
-		span.value =  [0, ["", "", "", "", ""]];
-		span.dispatchEvent(new CustomEvent('input'));
 		game.classList.remove("gamewon");
 		game.classList.remove("gamelost");
+		for (let i = 0; i < letters.length; i++) {
+			removeColors(letters[i])
+		}
+	}
+
+	function removeColors(item) {
+		item.classList.remove("feedback0");
+		item.classList.remove("feedback1");
+		item.classList.remove("feedback2");
+	}
+
+	function resetGame() {
+		resetClasses();
+		span.value[0] = 0;
+		span.value[1] = ["", "", "", "", ""];
+		span.dispatchEvent(new CustomEvent('input'));
 		reset.blur();
+	}
+
+	function makeNewGame() {
+		resetClasses();
+		span.value[0] = 0;
+		span.value[1] = ["", "", "", "", ""];
+		span.value[2] = Math.round(Math.random()*$(length(possiblewords) - 1) + 1);
+		span.dispatchEvent(new CustomEvent('input'));
+		newGame.blur();
 	}
 	
 </script>
 </span>
 """)
+end
 
-# ╔═╡ 7fd84c6c-11d8-44c6-b0b0-8cf954651927
+# ╔═╡ 531a9553-3600-4f50-9708-802dd86414a9
+@bind testgrid makeWordleGame()
+
+# ╔═╡ 29416772-6370-46dd-bace-a5836f540994
 testgrid
 
 # ╔═╡ 369cc5bd-8a0a-41af-98a0-73731cf6decf
-if testgrid[2][1] != ""
-	guessfeedback = get_feedback(SVector{5, Char}(lowercase(Char(a[1])) for a in testgrid[2]), SVector{5, Char}(a for a in trueword))
-
-	jsaddflip(i) = add_elements("""elems[$i].classList.add("feedback$(guessfeedback[i+1])");""", """elems[$i].classList.remove("anim");""")
-
-	jsaddwin(i) = add_elements("""elems[$i].classList.add("win")""", """elems[$i].classList.remove("anim");""")
-
-	f = guessfeedback == winfeedback ? jsaddwin : jsaddflip
-	jsblock =mapreduce(f, add_elements, 0:4)
-
-	outcomeclass = if guessfeedback == winfeedback
-		"""document.getElementsByClassName("testinput")[0].classList.add("gamewon");"""
-	elseif testgrid[1] == 5
-		"""document.getElementsByClassName("testinput")[0].classList.add("gamelost");"""
-	else
-		""""""
-	end
+function scoreWordleGame(game)
+	if game[2][1] != ""
+		guessletters = game[2]
+		guessfeedback = get_feedback(SVector{5, Char}(lowercase(Char(a[1])) for a in game[2]), SVector{5, Char}(a for a in possiblewords[game[3]]))
 	
-	HTML("""
-		<script>
-			let elems = document.getElementsByClassName("inputbox row"+$(testgrid[1]));
-			$jsblock
-			$outcomeclass
-		</script>
-	""")
+		jsaddflip(i) = add_elements("""elems[$i].classList.add("feedback$(guessfeedback[i+1])");""", """elems[$i].classList.remove("anim");""")
+	
+		jsaddwin(i) = add_elements("""elems[$i].classList.add("win")""", """elems[$i].classList.remove("anim");""")
+	
+		f = guessfeedback == winfeedback ? jsaddwin : jsaddflip
+		
+		outcomeclass = if guessfeedback == winfeedback
+			"""
+			setTimeout(()=>{}, 1500);
+			document.getElementsByClassName("testinput")[0].classList.add("gamewon");
+			"""
+		elseif testgrid[1] == 5
+			"""
+			let board = document.getElementsByClassName("testinput")[0];
+			setTimeout(() => {}, 1500);
+			board.classList.add("gamelost");
+			"""
+		else
+			""""""
+		end
+
+		
+		colorletter(i) = """letters[$(letterlookup[guessletters[i] |> first |> Char])-1].classList.add("feedback$(guessfeedback[i])")"""
+
+		jsblock = add_elements(mapreduce(f, add_elements, 0:4), mapreduce(colorletter, add_elements, 1:5))
+		answer = possiblewords[game[3]]
+		
+		
+		HTML("""
+			<script>
+				let elems = document.getElementsByClassName("inputbox row"+$(testgrid[1]));
+				let letters = document.getElementsByClassName("letter");
+				$jsblock
+				$outcomeclass
+			</script>
+			<style>
+				.gamelost:hover::before {
+					content: 'Word was $answer';
+					font-family: "nyt-franklin", sans-serif;
+					font-weight: bold;
+					-webkit-font-smoothing: antialiased;
+					text-transform: uppercase;
+					font-size: calc(var(--container-width)/5/3.0); 
+					color: green;
+					text-shadow: 3px 3px black;
+					opacity: 0;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					animation: showtext 2s forwards;
+				}
+				@keyframes showtext {
+					0% {transform: scale(0.8);}
+					100% {opacity: 1; transform: scale(1.3)}
+				}
+			</style>
+		""")
+	end
 end
 
-# ╔═╡ 26477fae-cf0f-41e1-92fc-5e2bfd7ff870
-HTML("""
-<style>
-	.gamewon::before {
-		content: '';
-		position: absolute;
-		width: calc(var(--container-width)*0.99);
-		height: calc(var(--container-width)*1.19);
-		animation: winoverlay 1s 1.5s forwards;
-		
-	}
-	.gamewon::after {
-		content: '';
-		position: absolute;
-		width: calc(var(--container-width)*0.99);
-		height: calc(var(--container-width)*1.19);
-		font-family: "nyt-franklin", sans-serif;
-		font-weight: bold;
-		-webkit-font-smoothing: antialiased;
-		text-transform: uppercase;
-		font-size: calc(var(--container-width)/5/2.0); 
-		color: white;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		animation: winmessage 1s 1.5s forwards linear;
-	}
-	@keyframes winmessage {
-		0% {transform: scale(0.8);  transform: rotate(0deg);}
-		25% {transform: rotate(180deg);}
-		50% { transform: scale(2.0); transform: rotate(360deg);}
-		75% {transform: rotate(540deg);}
-		100% { 	content: "Game Won!"; transform: rotate(720deg);}
-	}
-
-	@keyframes winoverlay {
-		100% { background-color: rgba(50, 50, 50, 0.8);}
-	}
-
-	.gamelost::before {
-		content: '';
-		position: absolute;
-		width: calc(var(--container-width)*0.99);
-		height: calc(var(--container-width)*1.19);
-		animation: loseoverlay 1s 1.5s forwards;
-		
-	}
-	.gamelost::after {
-		content: '';
-		position: absolute;
-		font-family: "nyt-franklin", sans-serif;
-		font-weight: bold;
-		-webkit-font-smoothing: antialiased;
-		text-transform: uppercase;
-		font-size: calc(var(--container-width)/5/2.0); 
-		color: red;
-		animation: losemessage 2s 1.5s forwards ease;
-	}
-	@keyframes losemessage {
-		0%: {translate: calc(var(--container-width)/7) 0;}
-		25% {translate: calc(var(--container-width)/7) calc(var(--container-width)*1.05);}
-		50% {translate: calc(var(--container-width)/7) calc(var(--container-width)*.5);}
-		100% {translate: calc(var(--container-width)/7) calc(var(--container-width)*1.05); content: 'Game Lost :(';}
-	}
-
-	@keyframes loseoverlay {
-		100% { background-color: rgba(20, 20, 20, 0.9);}
-	}
-</style>
-""")
+# ╔═╡ 23a133ec-e367-4056-8925-3d36d7662e3f
+scoreWordleGame(testgrid)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1293,6 +1435,7 @@ version = "17.4.0+0"
 # ╠═89603668-4ee2-4683-8364-b96381ce6498
 # ╠═0f381eb4-b319-4440-b7b9-11c9705d542d
 # ╠═cf667532-40de-4a1e-9e26-9f458e7ded70
+# ╠═26477fae-cf0f-41e1-92fc-5e2bfd7ff870
 # ╠═c9b7b336-032e-4597-a529-0df2f841f2cf
 # ╠═d07ecb11-b9b9-44ac-8b71-2efd18f19cde
 # ╠═a1dc9008-e61a-4298-ad7e-c5faf8df096c
@@ -1306,13 +1449,14 @@ version = "17.4.0+0"
 # ╟─02274b6f-5a58-41e6-82e1-820c7f888764
 # ╠═24327929-c8f5-45b2-80ad-c873daedf677
 # ╠═ca1cd33a-3d41-4878-8b95-7b7f44353695
-# ╠═016671f9-24cd-4cd0-88e0-4cc819b32355
 # ╠═67cfc7fc-704e-45a0-ae08-cfb6bb9227e3
 # ╠═549678a0-3d63-40e5-b702-ae336f3ece3b
-# ╠═7fd84c6c-11d8-44c6-b0b0-8cf954651927
-# ╟─ab28d817-54d3-49f8-b8b1-753e06f6708a
+# ╟─1440b947-f270-4a6e-87da-86bd3928c1d4
 # ╠═531a9553-3600-4f50-9708-802dd86414a9
+# ╠═23a133ec-e367-4056-8925-3d36d7662e3f
+# ╠═40d60cb9-5fd6-4e30-9efe-e0413ede03b6
+# ╠═76aa860d-fa1f-472c-860e-5cb496ad9853
+# ╠═29416772-6370-46dd-bace-a5836f540994
 # ╠═369cc5bd-8a0a-41af-98a0-73731cf6decf
-# ╠═26477fae-cf0f-41e1-92fc-5e2bfd7ff870
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
