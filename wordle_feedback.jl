@@ -948,7 +948,11 @@ function show_wordle_game(answer::AbstractString, guesses::AbstractVector{T}) wh
 	#calculate feedback for each guess
 	feedbacklist = [get_feedback(guess, answer) for guess in guesses]
 
-	gamewin = last(feedbacklist) == winfeedback
+	winind = findfirst(==(winfeedback), feedbacklist)
+
+	stopind = isnothing(winind) ? lastindex(feedbacklist) : winind
+
+	gamewin = feedbacklist[stopind] == winfeedback
 
 	boxclass(r, c) = "inputbox row$(r-1) box$(c-1)"
 	
@@ -962,9 +966,9 @@ function show_wordle_game(answer::AbstractString, guesses::AbstractVector{T}) wh
 	
 	makeblankbox(r, c) = makebox(r, c, "")
 
-	feedbackboxes = mapreduce(a -> makefeedbackbox(a...), add_elements, ((r, c) for r in 1:lastindex(feedbacklist)-1 for c in 1:5))
-	winboxes = gamewin ? mapreduce(c -> makewinbox(lastindex(feedbacklist), c), add_elements, 1:5) : mapreduce(c -> makefeedbackbox(lastindex(feedbacklist), c), add_elements, 1:5)
-	blankboxes = mapreduce(a -> makeblankbox(a...), add_elements, ((r, c) for r in lastindex(feedbacklist)+1:6 for c in 1:5); init= """""")
+	feedbackboxes = mapreduce(a -> makefeedbackbox(a...), add_elements, ((r, c) for r in 1:stopind-1 for c in 1:5))
+	winboxes = gamewin ? mapreduce(c -> makewinbox(stopind, c), add_elements, 1:5) : mapreduce(c -> makefeedbackbox(stopind, c), add_elements, 1:5)
+	blankboxes = mapreduce(a -> makeblankbox(a...), add_elements, ((r, c) for r in stopind+1:6 for c in 1:5); init= """""")
 	
 	boardclass = gamewin ? "gamewin" : answer
 	HTML("""
