@@ -645,7 +645,7 @@ begin
 	WordleGame(wordindex=rand(1:length(possiblewords))) = WordleGame(0, ["", "", "", "", ""], wordindex)
 
 	Base.get(input::WordleGame) = Bonds.initial_value(input)
-	Bonds.initial_value(input::WordleGame) = (0, "", "", "", "", "", input.answerindex)
+	Bonds.initial_value(input::WordleGame) = (0, ["", "", "", "", ""], input.answerindex)
 	Bonds.possible_values(input::WordleGame) = Bonds.InfinitePossibilities()
 	Bonds.transform_value(input::WordleGame, val_from_js) = (val_from_js[1], [lowercase(a) for a in val_from_js[2]], val_from_js[3])
 
@@ -854,6 +854,9 @@ md"""
 
 # ╔═╡ 213562fd-f12e-43dd-b4be-c33dca669863
 @bind wordlegame WordleGame()
+
+# ╔═╡ 625ea7d0-ce47-44ea-84d3-faaccd8f4b8b
+wordlegame
 
 # ╔═╡ 369cc5bd-8a0a-41af-98a0-73731cf6decf
 function score_wordle_game(game)
@@ -1611,6 +1614,7 @@ version = "17.4.0+0"
 # ╠═bb2ac4f1-4a9b-4363-982c-e5fc0b488db6
 # ╟─d72632c1-2873-4f04-92fa-c75ceace9753
 # ╠═213562fd-f12e-43dd-b4be-c33dca669863
+# ╠═625ea7d0-ce47-44ea-84d3-faaccd8f4b8b
 # ╠═1a3f641c-f20b-4008-8cb7-c5f1becd4845
 # ╠═369cc5bd-8a0a-41af-98a0-73731cf6decf
 # ╟─a4758d1d-be64-4412-a435-edb936ceec71
