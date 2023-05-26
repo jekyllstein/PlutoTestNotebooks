@@ -644,7 +644,7 @@ begin
 	
 	WordleGame(wordindex=rand(1:length(possiblewords))) = WordleGame(0, ["", "", "", "", ""], wordindex)
 
-	Base.get(input::WordleGame) = input
+	Base.get(input::WordleGame) = Bonds.initial_value(input)
 	Bonds.initial_value(input::WordleGame) = (0, "", "", "", "", "", input.answerindex)
 	Bonds.possible_values(input::WordleGame) = Bonds.InfinitePossibilities()
 	Bonds.transform_value(input::WordleGame, val_from_js) = (val_from_js[1], [lowercase(a) for a in val_from_js[2]], val_from_js[3])
@@ -684,7 +684,6 @@ begin
 			let col = -1;
 			let row = 0;
 			span.value = [row, ["", "", "", "", ""], $wordindex];
-			span.dispatchEvent(new CustomEvent('input'));
 			let rows = [0, 1, 2, 3, 4, 5];
 			const rowElems = rows.map(row => document.querySelectorAll(".wordle-game.$gameclass .inputbox.row"+row));
 			function handleKeyDown(e) {
@@ -738,9 +737,6 @@ begin
 				}
 				game.classList.remove("gamewon");
 				game.classList.remove("gamelost");
-				gameContainer.classList.remove("answer-number-" + span.value[2]);
-				span.value[2] = Math.round(Math.random()*$(length(possiblewords) - 1) + 1);
-				gameContainer.classList.add("answer-number-" + span.value[2]);
 				for (let i = 0; i < letters.length; i++) {
 					removeColors(letters[i]);
 				}
@@ -764,6 +760,9 @@ begin
 				resetClasses();
 				span.value[0] = 0;
 				span.value[1] = ["", "", "", "", ""];
+				gameContainer.classList.remove("answer-number-" + span.value[2]);
+				span.value[2] = Math.round(Math.random()*$(length(possiblewords) - 1) + 1);
+				gameContainer.classList.add("answer-number-" + span.value[2]);
 				span.dispatchEvent(new CustomEvent('input'));
 				newGame.blur();
 			}
