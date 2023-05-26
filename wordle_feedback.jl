@@ -855,9 +855,6 @@ md"""
 # ╔═╡ 213562fd-f12e-43dd-b4be-c33dca669863
 @bind wordlegame WordleGame()
 
-# ╔═╡ 17448c6a-1146-4998-aba5-d2c3ebb920f4
-wordlegame
-
 # ╔═╡ 369cc5bd-8a0a-41af-98a0-73731cf6decf
 function score_wordle_game(game)
 	answer = possiblewords[game[3]]
@@ -1615,7 +1612,6 @@ version = "17.4.0+0"
 # ╟─d72632c1-2873-4f04-92fa-c75ceace9753
 # ╠═213562fd-f12e-43dd-b4be-c33dca669863
 # ╠═1a3f641c-f20b-4008-8cb7-c5f1becd4845
-# ╠═17448c6a-1146-4998-aba5-d2c3ebb920f4
 # ╠═369cc5bd-8a0a-41af-98a0-73731cf6decf
 # ╟─a4758d1d-be64-4412-a435-edb936ceec71
 # ╟─fa98b1f7-520d-4fbd-9a97-531ec137da52
