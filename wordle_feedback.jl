@@ -69,34 +69,6 @@ md"""
 ## Playable Game
 """
 
-# ╔═╡ 0b6f51cc-7014-4cc8-a346-a6f6f4f8ad00
-function add_style(block::String)
-	HTML("""
-	<style>
-	$block
-	</style>
-	""")
-end
-
-# ╔═╡ 2b79f0bc-462c-4bdc-b092-ba49e55e82e1
-add_style(
-	"""
-	.Key-module_key__kchQI:active, .Key-module_key__kchQI.pressed {
-		transform: translateY(3px) scale(.98);
-		filter: brightness(0.85);
-	}
-
-	.Key-module_key__kchQI:hover:not(.Key-module_key__kchQI:active) {
-		animation: hover-key .85s infinite;
-	}
-
-	@keyframes hover-key {
-		50% {filter: brightness(1.2); transform: translateY(-1px) scale(1.01);}
-	}
-	
-	"""
-)
-
 # ╔═╡ 5d1ff26f-80dd-40b7-83f2-d0e57853d927
 md"""
 ## Game Results Displayed
@@ -250,7 +222,7 @@ const wordlegamestyle = HTML("""
 
 	.Keyboard-module_keyboard__uYuqf {
 	  height: calc(var(--container-width)*2/3.5);
-	  width: calc(var(--container-width)*1.3);
+	  width: min(90vw, calc(var(--container-width)*1.3));
 	  margin: 0 8px;
 	  -webkit-user-select: none;
 	  -moz-user-select: none;
@@ -421,6 +393,34 @@ const endgame_styles = HTML("""
 	}
 </style>
 """)
+
+# ╔═╡ 0b6f51cc-7014-4cc8-a346-a6f6f4f8ad00
+function add_style(block::String)
+	HTML("""
+	<style>
+	$block
+	</style>
+	""")
+end
+
+# ╔═╡ 2b79f0bc-462c-4bdc-b092-ba49e55e82e1
+add_style(
+	"""
+	.Key-module_key__kchQI:active, .Key-module_key__kchQI.pressed {
+		transform: translateY(3px) scale(.98);
+		filter: brightness(0.85);
+	}
+
+	.Key-module_key__kchQI:hover:not(.Key-module_key__kchQI:active) {
+		animation: hover-key .85s infinite;
+	}
+
+	@keyframes hover-key {
+		50% {filter: brightness(1.2); transform: translateY(-1px) scale(1.01);}
+	}
+	
+	"""
+)
 
 # ╔═╡ 9f778262-c791-4957-a750-28c0392f39a9
 const colorlookup = Dict([0x00 => "#3a3a3c", 0x01 => "#b59f3b", 0x02 => "#538d4e"])
