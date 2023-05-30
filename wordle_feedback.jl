@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.26
+# v0.19.25
 
 using Markdown
 using InteractiveUtils
@@ -72,6 +72,7 @@ md"""
 # ╔═╡ 5d1ff26f-80dd-40b7-83f2-d0e57853d927
 md"""
 ## Game Results Displayed
+The following boards are not interactive but rather display the outcome of a game already played.  The `show_wordle_game` function takes an answer and list of guesses as input and calculates the game outcome from this.  If the game is not won and the number of guesses is less than the maximum allowed, then the game will be displayed as unfinished.
 
 ### Won Game Example
 """
@@ -474,7 +475,7 @@ const basewordlestyle = HTML(
 			to {background-color: $(colorlookup[2]); border: 0px solid rgba(0, 0, 0, 0);}
 		}
 
-	.displaymessage {
+	.rejectmessage {
 		position: absolute;
 		margin: 0 auto;
 		margin-top: calc(var(--container-width)*.01);
@@ -484,7 +485,12 @@ const basewordlestyle = HTML(
 		align-items: center;
 		flex-direction: column;
 	}
-	.displaymessage .invalid::before {
+
+	.rejectmessage:empty {
+		display: none;
+	}
+	
+	.rejectmessage *::before {
 		content: 'Not in word list';
 		display: flex;
 		background-color: rgba(255, 255, 255, 0.95);
@@ -501,6 +507,10 @@ const basewordlestyle = HTML(
 		animation-duration: 300ms;
 		animation-fill-mode: forwards;
 		animation-delay: 1100ms;	
+	}
+
+	.rejectmessage .short-guess::before {
+		content: 'Not enough letters';
 	}
 		}
 	</style>
@@ -617,6 +627,10 @@ end
 # ╔═╡ 28e55a1e-66cd-45c3-a04f-c758fc7d55cc
 # hover on and off to repeat animation
 show_pattern("while", "while")
+
+# ╔═╡ c4b86aad-67dd-43f5-8e6d-88cc9fd75e68
+# hover on and off to repeat animation
+show_pattern("whose", "happy")
 
 # ╔═╡ da01b6d5-6c7d-49dc-933d-e9bf475d91a2
 function show_blank_squares(guess)
@@ -742,13 +756,14 @@ md"""
 
 # ╔═╡ bb2ac4f1-4a9b-4363-982c-e5fc0b488db6
 begin
-	struct WordleGame{T <: Integer}
+	struct WordleGame{T <: Integer, S <: AbstractString}
 		guessnum::T
 		guess::Vector{String}
 		answer_index_list::Vector{T}
 		answerindex::T
 		numguesses::T
 		showletters::Bool
+		possible_answers::Vector{S}
 	end
 
 	function sample_random_answers(n)
@@ -756,7 +771,7 @@ begin
 		[word_index[a] for a in future_answers]
 	end
 	
-	WordleGame(;answer_index_list=sample_random_answers(5000), nguesses = 6, showletters=true) = WordleGame(0, ["", "", "", "", ""], answer_index_list, first(answer_index_list), nguesses, showletters)
+	WordleGame(;answer_index_list=sample_random_answers(5000), nguesses = 6, showletters=true) = WordleGame(0, ["", "", "", "", ""], answer_index_list, first(answer_index_list), nguesses, showletters, nyt_valid_words)
 
 	WordleGame(answer::AbstractString; kwargs...) = WordleGame(;answer_index_list = [word_index[lowercase(answer)]], kwargs...)
 
@@ -773,7 +788,7 @@ begin
 	
 	function Bonds.show(io::IO, m::MIME"text/html", game::WordleGame)
 		wordindex = game.answerindex
-		answer = nyt_valid_words[wordindex]
+		answer = game.possible_answers[wordindex]
 		future_answer_index = game.answer_index_list
 		nrows = game.numguesses
 		gameclass = "answer-number-$(game.answerindex)"
@@ -817,7 +832,7 @@ begin
 		</div>
 		<button class=submit-guess>Submit Guess</button>
 		$lettergrid
-		<div class = displaymessage></div>
+		<div class = rejectmessage></div>
 		<style>
 		$resizegrid
 		$hideletters
@@ -831,11 +846,9 @@ begin
 			submitGuess.addEventListener("click", () => processKeyCode(13, "Enter"))
 			const span = currentScript.parentElement;
 			const game = document.querySelector(".wordle-game.$gameclass .wordle-game-grid");
-			const messageDisplay = document.querySelector(".wordle-game.$gameclass .displaymessage");
-			messageDisplay.classList.remove("displaymessage");
-			const displayNodes = messageDisplay.childNodes;
+			const messageDisplay = document.querySelector(".wordle-game.$gameclass .rejectmessage");
 			const futureAnswerIndex = $future_answer_index;
-			const validWords = $nyt_valid_words;
+			const validWords = $(game.possible_answers);
 			const validWordSet = new Set(validWords);
 		
 			let answerIndex = 0;
@@ -878,46 +891,49 @@ begin
 						if (col < -1) {
 							col = -1;
 						}
-						} else if (code == 13 && col == 4 && elems[4].hasAttribute("label")) {
-						let currentWord = elems.map(e => e.getAttribute('label')).reduce((a, b) => a+b);
-						if (validWordSet.has(currentWord)) {
-							for (let i = 0; i<5; i++) {
-								span.value[1][i] = elems[i].getAttribute("label");
-							}
-							col = -1;
-							span.value[0] = row;
-							span.dispatchEvent(new CustomEvent('input'));
-							row += 1;
+					} else if (code == 13) { 
+			
+						if (col == 4 && elems[4].hasAttribute("label")) {
+							let currentWord = elems.map(e => e.getAttribute('label')).reduce((a, b) => a+b);
+							if (validWordSet.has(currentWord)) {
+								for (let i = 0; i<5; i++) {
+									span.value[1][i] = elems[i].getAttribute("label");
+								}
+								col = -1;
+								span.value[0] = row;
+								span.dispatchEvent(new CustomEvent('input'));
+								row += 1;
+							} else {
+								let message = document.createElement("div");
+								for (let i = 0; i<5; i++) {
+									let e = elems[i]
+									e.classList.remove("anim");
+									e.classList.add("invalid");
+									setTimeout(removeInvalid, 600, e);
+								}
+								let children = [...messageDisplay.childNodes];
+								let l = children.length;
+								messageDisplay.insertBefore(message, children[0]);
+								setTimeout(removeMessage, 1500, message);
+								console.log(currentWord, "is an invalid guess")
+							}	
 						} else {
 							let message = document.createElement("div");
-							message.classList.add("invalid");
-							messageDisplay.classList.add("displaymessage");
-							for (let i = 0; i<5; i++) {
-								let e = elems[i]
-								e.classList.remove("anim");
-								e.classList.add("invalid");
-								setTimeout(removeInvalid, 600, e);
-							}
-							messageDisplay.appendChild(message); 
-							let children = [...messageDisplay.childNodes];
-							let l = children.length;
-							messageDisplay.insertBefore(message, children[0]);
-							setTimeout(removeMessage, 1500, message);
-							// for (let i = 0; i<l; i++) {
-							//	messageDisplay.removeChild(children[i]);
-							//	let message = document.createElement("div");
-							//	messageDisplay.appendChild(message);
-							//	message.classList.add("invalid");
-							//	message.style.animationDelay = (l-i)*100 + "ms";
-							//	setTimeout(removeMessage, 1200+(l-i)*100, message);
-							//}
-							console.log(currentWord, "is an invalid guess")
-							
-						}	
+								message.classList.add("short-guess");
+								for (let i = 0; i<5; i++) {
+									let e = elems[i]
+									e.classList.remove("anim");
+									e.classList.add("invalid");
+									setTimeout(removeInvalid, 600, e);
+								}
+								let children = [...messageDisplay.childNodes];
+								messageDisplay.insertBefore(message, children[0]);
+								setTimeout(removeMessage, 1500, message);
+								console.log("Guess too short")
+						}
 					}
 				}
-		}
-
+			}
 			function removeInvalid(e) {
 				e.classList.remove("invalid");
 			}
@@ -926,6 +942,7 @@ begin
 				messageDisplay.removeChild(c);
 				if (!messageDisplay.hasChildNodes()) {
 					messageDisplay.classList.remove("displaymessage");
+					messageDisplay.classList.remove("short-guess");
 				}
 			}
 		
@@ -970,7 +987,7 @@ begin
 				span.value[1] = ["", "", "", "", ""];
 				span.value[2] = futureAnswerIndex[answerIndex];
 				answerIndex += 1;
-				if (answerIndex > futureAnswerIndex.length) {
+				if (answerIndex > futureAnswerIndex.length-1) {
 					answerIndex = 0;
 				}
 				span.dispatchEvent(new CustomEvent('input'));
@@ -984,16 +1001,6 @@ begin
 	end
 	#add event listeners for keyboard keys and change layout to querty
 end
-
-# ╔═╡ 00b839be-83b0-435e-a903-9728e7b15c8d
-@bind testguess TextField(default="whose")
-
-# ╔═╡ 63bb509d-91e1-418e-9a84-10fe7cadf1d0
-testguess
-
-# ╔═╡ c4b86aad-67dd-43f5-8e6d-88cc9fd75e68
-# hover on and off to repeat animation
-show_pattern(testguess, "happy")
 
 # ╔═╡ 2b1e631e-e56a-4514-b217-8c1a1b9d43c8
 @bind rawanswer confirm(WordleInput(default="apple"))
@@ -1014,8 +1021,12 @@ md"""
 ### Guess
 When focused on this element, type to enter a guess.  Either use the enter key or button to submit it for feedback.  After submission, hovering over boxes will remove feedback and animation will replay after hover is removed.
 
-$(@bind guess3 WordleGame(answer; nguesses = 1, showletters=false))
+$(@bind singleguess WordleGame(answer; nguesses = 1, showletters=false))
 """
+
+# ╔═╡ 185bdee1-7ac6-48de-abd2-b2cacc20dca3
+#guess is updated after an answer is submitted
+singleguess
 
 # ╔═╡ 61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
 md"""
@@ -1122,7 +1133,8 @@ function score_wordle_game(game; finalscore=true)
 end
 
 # ╔═╡ 8578f11a-474e-48f3-a592-4fb9b653d9ef
-score_wordle_game(guess3; finalscore=false)
+#executes javascript code to restyle guess showing game feedback
+score_wordle_game(singleguess; finalscore=false)
 
 # ╔═╡ 1a3f641c-f20b-4008-8cb7-c5f1becd4845
 score_wordle_game(wordlegame)
@@ -1163,7 +1175,7 @@ function show_wordle_game(answer::AbstractString, guesses::AbstractVector{T}) wh
 	winboxes = gamewin ? mapreduce(c -> makewinbox(stopind, c), add_elements, 1:5) : mapreduce(c -> makefeedbackbox(stopind, c), add_elements, 1:5)
 	blankboxes = mapreduce(a -> makeblankbox(a...), add_elements, ((r, c) for r in stopind+1:6 for c in 1:5); init= """""")
 	
-	boardclass = gamewin ? "gamewin" : "$answer gamelost"
+	boardclass = gamewin ? "gamewin" : lastindex(guesses) == 6 ? "$answer gamelost" : ""
 	HTML("""
 	<div class = "wordle-game-display">
 	<div class = "wordle-game-grid $boardclass">
@@ -1209,7 +1221,7 @@ function show_wordle_game(answer::AbstractString, guesses::AbstractVector{T}) wh
 		}
 
 		.$answer:hover::after {
-			content: 'Word was $(uppercase(answer))   Better Luck Next Time...';
+			content: 'Word was "$(uppercase(answer))"  Better Luck Next Time...';
 			color: darkred;
 			text-shadow: 3px 3px black;
 		}
@@ -1744,8 +1756,6 @@ version = "17.4.0+0"
 # ╟─2cc98f92-65d1-44e9-85e0-a349e410c26f
 # ╟─34c88911-bed5-4e78-a838-c6fa8af00694
 # ╠═28e55a1e-66cd-45c3-a04f-c758fc7d55cc
-# ╟─00b839be-83b0-435e-a903-9728e7b15c8d
-# ╠═63bb509d-91e1-418e-9a84-10fe7cadf1d0
 # ╠═c4b86aad-67dd-43f5-8e6d-88cc9fd75e68
 # ╟─83e390c1-16e8-4ba5-abf8-c8fadddf7868
 # ╠═7a6f6ee7-5992-43e2-8c23-35e94e7e4d91
@@ -1754,6 +1764,7 @@ version = "17.4.0+0"
 # ╟─2b1e631e-e56a-4514-b217-8c1a1b9d43c8
 # ╟─58cece7f-7b8f-4e33-b5b7-9205b140fc34
 # ╟─65aa2783-320d-4432-bbf1-d943d99ac8d8
+# ╠═185bdee1-7ac6-48de-abd2-b2cacc20dca3
 # ╠═8578f11a-474e-48f3-a592-4fb9b653d9ef
 # ╟─3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
 # ╟─61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
