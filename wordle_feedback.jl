@@ -69,6 +69,34 @@ md"""
 ## Playable Game
 """
 
+# ╔═╡ 0b6f51cc-7014-4cc8-a346-a6f6f4f8ad00
+function add_style(block::String)
+	HTML("""
+	<style>
+	$block
+	</style>
+	""")
+end
+
+# ╔═╡ 2b79f0bc-462c-4bdc-b092-ba49e55e82e1
+add_style(
+	"""
+	.Key-module_key__kchQI:active, .Key-module_key__kchQI.pressed {
+		transform: translateY(3px) scale(.98);
+		filter: brightness(0.85);
+	}
+
+	.Key-module_key__kchQI:hover:not(.Key-module_key__kchQI:active) {
+		animation: hover-key .85s infinite;
+	}
+
+	@keyframes hover-key {
+		50% {filter: brightness(1.2); transform: translateY(-1px) scale(1.01);}
+	}
+	
+	"""
+)
+
 # ╔═╡ 5d1ff26f-80dd-40b7-83f2-d0e57853d927
 md"""
 ## Game Results Displayed
@@ -934,14 +962,35 @@ begin
 			}
 		
 			span.addEventListener("keydown", handleKeyDown);
+			span.addEventListener("keyup", handleKeyUp);
 			let col = -1;
 			let row = 0;
 			span.value = [row, ["", "", "", "", ""], $wordindex];
 			let rows = $(collect(0:nrows-1));
 			const rowElems = rows.map(row => [...document.querySelectorAll(".wordle-game.$gameclass .inputbox.row"+row)]);
 
+			function getKeySelector(e) {
+				let k = e.key; 
+				if (e.key == "Backspace") {
+					k = "←";
+				} else if (e.key == "Enter") {
+					k = "↵";
+				}
+							
+				let selector = '.wordle-game.$gameindex .Key-module_key__kchQI[data-key="' + k + '"]'
+				// console.log(selector);
+				return selector;
+			}
+
 			function handleKeyDown(e) {
+				let selector = getKeySelector(e);
+				document.querySelector(selector).classList.add('pressed');
 				processKeyCode(e.keyCode, e.key);
+			}
+
+			function handleKeyUp(e) {
+				let selector = getKeySelector(e);
+				document.querySelector(selector).classList.remove('pressed');
 			}
 		
 			function processKeyCode(code, key) {
@@ -1869,6 +1918,8 @@ version = "17.4.0+0"
 # ╠═76cbba0c-5c56-4740-a212-8a4acb5339e0
 # ╠═7162ea9f-f7d8-47fe-8e55-b68f3c7f1ed1
 # ╠═26477fae-cf0f-41e1-92fc-5e2bfd7ff870
+# ╠═2b79f0bc-462c-4bdc-b092-ba49e55e82e1
+# ╠═0b6f51cc-7014-4cc8-a346-a6f6f4f8ad00
 # ╠═9f778262-c791-4957-a750-28c0392f39a9
 # ╠═37d4ce45-c3a0-4202-befd-099efc0a8493
 # ╠═042d38e6-edfc-4b08-81c5-497ce5c1eaee
