@@ -160,6 +160,11 @@ function stylelabel(letter)
 	"""
 end
 
+# ╔═╡ 76cbba0c-5c56-4740-a212-8a4acb5339e0
+const nyt_keyboard = """
+	<div class="Keyboard-module_keyboard__uYuqf" role="group" aria-label="Keyboard"><div class="Keyboard-module_row__ilOKU"><button type="button" data-key="q" class="Key-module_key__kchQI">q</button><button type="button" data-key="w" class="Key-module_key__kchQI">w</button><button type="button" data-key="e" class="Key-module_key__kchQI">e</button><button type="button" data-key="r" class="Key-module_key__kchQI">r</button><button type="button" data-key="t" class="Key-module_key__kchQI">t</button><button type="button" data-key="y" class="Key-module_key__kchQI">y</button><button type="button" data-key="u" class="Key-module_key__kchQI">u</button><button type="button" data-key="i" class="Key-module_key__kchQI">i</button><button type="button" data-key="o" class="Key-module_key__kchQI">o</button><button type="button" data-key="p" class="Key-module_key__kchQI">p</button></div><div class="Keyboard-module_row__ilOKU"><div data-testid="spacer" class="Key-module_half__HooWu"></div><button type="button" data-key="a" class="Key-module_key__kchQI">a</button><button type="button" data-key="s" class="Key-module_key__kchQI">s</button><button type="button" data-key="d" class="Key-module_key__kchQI">d</button><button type="button" data-key="f" class="Key-module_key__kchQI">f</button><button type="button" data-key="g" class="Key-module_key__kchQI">g</button><button type="button" data-key="h" class="Key-module_key__kchQI">h</button><button type="button" data-key="j" class="Key-module_key__kchQI">j</button><button type="button" data-key="k" class="Key-module_key__kchQI">k</button><button type="button" data-key="l" class="Key-module_key__kchQI">l</button><div data-testid="spacer" class="Key-module_half__HooWu"></div></div><div class="Keyboard-module_row__ilOKU"><button type="button" data-key="↵" class="Key-module_key__kchQI Key-module_oneAndAHalf__bq8Tw">enter</button><button type="button" data-key="z" class="Key-module_key__kchQI">z</button><button type="button" data-key="x" class="Key-module_key__kchQI">x</button><button type="button" data-key="c" class="Key-module_key__kchQI">c</button><button type="button" data-key="v" class="Key-module_key__kchQI">v</button><button type="button" data-key="b" class="Key-module_key__kchQI">b</button><button type="button" data-key="n" class="Key-module_key__kchQI">n</button><button type="button" data-key="m" class="Key-module_key__kchQI">m</button><button type="button" data-key="←" aria-label="backspace" class="Key-module_key__kchQI Key-module_oneAndAHalf__bq8Tw"><svg xmlns="http://www.w3.org/2000/svg" height="20" viewBox="0 0 24 24" width="20" class="game-icon" data-testid="icon-backspace"><path fill="var(--color-tone-1)" d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H7.07L2.4 12l4.66-7H22v14zm-11.59-2L14 13.41 17.59 17 19 15.59 15.41 12 19 8.41 17.59 7 14 10.59 10.41 7 9 8.41 12.59 12 9 15.59z"></path></svg></button></div></div>
+"""
+
 # ╔═╡ 7162ea9f-f7d8-47fe-8e55-b68f3c7f1ed1
 const wordlegamestyle = HTML("""
 <style>
@@ -213,6 +218,58 @@ const wordlegamestyle = HTML("""
 		-webkit-font-smoothing: antialiased;
 		text-transform: uppercase;
 		font-size: calc(var(--container-width)/5/6.0); 
+	}
+
+	.Keyboard-module_keyboard__uYuqf {
+	  height: calc(var(--container-width)*2/3.5);
+	  width: calc(var(--container-width)*1.3);
+	  margin: 0 8px;
+	  -webkit-user-select: none;
+	  -moz-user-select: none;
+	  user-select: none;
+	  padding: 0;
+	  border: 0;
+	}
+	
+	.Keyboard-module_row__ilOKU {
+	  display: flex;
+	  width: 100%;
+	  margin: 0 auto 8px;
+	  touch-action: manipulation;
+	  padding: 0;
+	  border: 0;
+	}
+	
+	.Key-module_half__HooWu {
+	  flex: .5;
+	}
+	
+	.Key-module_key__kchQI {
+	  font-family: "Arial";
+	  font-size: 1.25em;
+	  font-weight: bold;
+	  border: 0;
+	  padding: 0;
+	  margin: 0 6px 0 0;
+	  height: calc(var(--container-width)*1.3*.12);
+	  border-radius: 4px;
+	  cursor: pointer;
+	  -webkit-user-select: none;
+	  -moz-user-select: none;
+	  user-select: none;
+	  background-color: #818384;
+	  color: #ffffff;
+	  flex: 1;
+	  display: flex;
+	  justify-content: center;
+	  align-items: center;
+	  text-transform: uppercase;
+	  -webkit-tap-highlight-color: rgba(0,0,0,.3);
+	}
+	
+	.Key-module_oneAndAHalf__bq8Tw {
+	  flex: 1.5;
+	  font-size: 12px;
 	}
 </style>
 """)
@@ -456,6 +513,14 @@ const basewordlestyle = HTML(
 		$(mapreduce(add_elements, 0:2) do i
 			"""
 			.letter.feedback$i {
+				background-color: $(colorlookup[i]);
+			}
+			"""
+		end)
+
+		$(mapreduce(add_elements, 0:2) do i
+			"""
+			.Key-module_key__kchQI.feedback$i {
 				background-color: $(colorlookup[i]);
 			}
 			"""
@@ -817,9 +882,15 @@ begin
 		lettergrid = 
 		"""
 		<div class="letterGrid">
-		$(mapreduce(makelettersquare, add_elements, 'a':'z'))
+		$(mapreduce(makelettersquare, add_elements, ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', '1', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '2']))
 		</div>
 		"""
+
+		lettergrid = if game.showletters
+			nyt_keyboard
+		else
+			""""""
+		end
 		
 		show(io, m, HTML("""
 		<span class = "wordle-game $gameclass $gameindex" tabindex=0>
@@ -830,20 +901,20 @@ begin
 		<div class = wordle-game-grid>
 			$(mapreduce(a -> """<div class = "inputbox row$(a[1]) box$(a[2])"></div>""", add_elements, ((r, c) for r in 0:nrows-1 for c in 0:4)))
 		</div>
-		<button class=submit-guess>Submit Guess</button>
 		$lettergrid
 		<div class = rejectmessage></div>
 		<style>
 		$resizegrid
-		$hideletters
 		</style>
 		<script>
+			const keyLookup = {"0":48,"1":49,"2":50,"3":51,"4":52,"5":53,"6":54,"7":55,"8":56,"9":57,"d":68,"b":66,"a":65,"s":83,"i":73,"f":70,"k":75,"ß":219,"Dead":220,"+":187,"ü":186,"p":80,"o":79,"u":85,"z":90,"t":84,"r":82,"e":69,"w":87,"g":71,"h":72,"j":74,"l":76,"ö":192,"ä":222,"#":191,"q":81,"y":89,"x":88,"c":67,"v":86,"n":78,"m":77,",":188,".":190,"-":189,"ArrowRight":39,"ArrowLeft":37,"ArrowUp":38,"ArrowDown":40,"PageDown":34,"Clear":12,"Home":36,"PageUp":33,"End":35,"←":8,"↵":13};
+
+			//const keyLookup = {"0":48, "1":49};
+		
 			const reset = document.querySelector(".wordle-game.$gameclass .resetgame");
 			const newGame =  document.querySelector(".wordle-game.$gameclass .newGame");
-			const submitGuess =  document.querySelector(".wordle-game.$gameclass .submit-guess");
 			reset.addEventListener("click", resetGame);
 			newGame.addEventListener("click", makeNewGame);
-			submitGuess.addEventListener("click", () => processKeyCode(13, "Enter"))
 			const span = currentScript.parentElement;
 			const game = document.querySelector(".wordle-game.$gameclass .wordle-game-grid");
 			const messageDisplay = document.querySelector(".wordle-game.$gameclass .rejectmessage");
@@ -853,7 +924,15 @@ begin
 		
 			let answerIndex = 0;
 			const gameContainer = document.querySelector(".wordle-game.$gameclass");
-			const letters = document.querySelectorAll(".wordle-game.$gameclass .letter");
+			const letters = [...document.querySelectorAll(".wordle-game.$gameclass .Key-module_key__kchQI")];
+			letters.map(elem => elem.addEventListener("click", handleKeyClick));
+
+			function handleKeyClick(e) {
+				// console.log(e.target.getAttribute('data-key'));	
+				let key = e.target.getAttribute('data-key');
+				processKeyCode(keyLookup[key], key);
+			}
+		
 			span.addEventListener("keydown", handleKeyDown);
 			let col = -1;
 			let row = 0;
@@ -1021,7 +1100,7 @@ md"""
 ### Guess
 When focused on this element, type to enter a guess.  Either use the enter key or button to submit it for feedback.  After submission, hovering over boxes will remove feedback and animation will replay after hover is removed.
 
-$(@bind singleguess WordleGame(answer; nguesses = 1, showletters=false))
+$(@bind singleguess WordleGame(answer; nguesses = 1))
 """
 
 # ╔═╡ 185bdee1-7ac6-48de-abd2-b2cacc20dca3
@@ -1091,16 +1170,14 @@ function score_wordle_game(game; finalscore=true)
 			""""""
 		end
 
+		colorletter(i) = """document.querySelector('.wordle-game.$gameclass .Key-module_key__kchQI[data-key="$(lowercase(guessletters[i]))"]').classList.add('feedback$(guessfeedback[i])');"""
 		
-		colorletter(i) = """letters[$(letterlookup[guessletters[i] |> first |> Char |> lowercase])-1].classList.add("feedback$(guessfeedback[i])")"""
-
 		jsblock = add_elements(mapreduce(f, add_elements, 0:4), mapreduce(colorletter, add_elements, 1:5))
 		
 		
 		HTML("""
 			<script>
 				let elems = document.querySelectorAll(".wordle-game.$gameclass .inputbox.row"+$(game[1]));
-				let letters = document.querySelectorAll(".wordle-game.$gameclass .letter");
 				const board = document.querySelector(".wordle-game.$gameclass .wordle-game-grid")
 				$jsblock
 				$outcomeclass
@@ -1789,6 +1866,7 @@ version = "17.4.0+0"
 # ╟─851895b6-7538-4965-8d1c-da2a9732477c
 # ╠═da7b3114-afc0-46a0-8314-7c58f8eea6b0
 # ╠═cf667532-40de-4a1e-9e26-9f458e7ded70
+# ╠═76cbba0c-5c56-4740-a212-8a4acb5339e0
 # ╠═7162ea9f-f7d8-47fe-8e55-b68f3c7f1ed1
 # ╠═26477fae-cf0f-41e1-92fc-5e2bfd7ff870
 # ╠═9f778262-c791-4957-a750-28c0392f39a9
