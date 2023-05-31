@@ -359,8 +359,8 @@ const endgame_styles = HTML("""
 		-webkit-font-smoothing: antialiased;
 		text-transform: uppercase;
 		font-size: calc(var(--container-width)/5/5.0); 
-		background-color: rgba(20, 20, 20, 0.9);
-		border: 2px solid rgba(20, 20, 20, 0.9);
+		background-color: rgba(20, 20, 20, 0.5);
+		border: 2px solid rgba(20, 20, 20, 0.5);
 		animation: fadein 3s;
 	}
 
@@ -390,6 +390,27 @@ const endgame_styles = HTML("""
 		0% {opacity: 0; color: rgba(0, 0, 0, 0);}
 		50% {opacity: 0; color: rgba(0, 0, 0, 0);}
 		100% {opacity: 1;}
+	}
+
+	.wordle-game .gamelost:hover::after {
+		content: attr(lose-message);
+		font-family: "Arial", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/3.0); 
+		color: green;
+		text-shadow: 3px 3px black;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		background-color: rgba(20, 20, 20, 0.7);
+		border: 2px solid rgba(0, 0, 0, 0);
+		animation: showtext 1s forwards;
+	}
+	@keyframes showtext {
+		0% {opacity: 0;}
+		100% {opacity: 1; transform: translateX(50px);}
 	}
 </style>
 """)
@@ -503,10 +524,10 @@ const basewordlestyle = HTML(
 		$(mapreduce(stylelabel, add_elements, 'a':'z'))
 
 		.wordle-box:hover .inputbox {
-			animation: fadein 0s;
+			animation: fadeout 1s forwards;
 		}
 		.wordle-box:hover .inputbox* {
-			animation: fadein 0s;
+			animation: fadeout 1s forwards;
 		}
 
 		@keyframes rowbounce {
@@ -584,7 +605,7 @@ const basewordlestyle = HTML(
 	}
 	
 	.rejectmessage *::before {
-		content: 'Not in word list';
+		content: '';
 		display: flex;
 		background-color: rgba(255, 255, 255, 0.95);
 		color: black;
@@ -602,8 +623,24 @@ const basewordlestyle = HTML(
 		animation-delay: 1100ms;	
 	}
 
+	.rejectmessage .not-in-list::before {
+		content: 'Not in word list';
+	}
+
 	.rejectmessage .short-guess::before {
 		content: 'Not enough letters';
+	}
+
+	.rejectmessage .game-won::before {
+		content: 'Congratulations!';
+		color: green;
+		background-color: rgba(20, 20, 20, 0.5);
+	}
+
+	.rejectmessage .game-lost::before {
+		content: 'Better luck next time';
+		color: red;
+		background-color: rgba(20, 20, 20, 0.5);
 	}
 		}
 	</style>
@@ -851,12 +888,14 @@ md"""
 begin
 	struct WordleGame{T <: Integer, S <: AbstractString}
 		guessnum::T
-		guess::Vector{String}
+		guesses::Vector{S}
+		feedback::Vector{Vector{T}}
 		answer_index_list::Vector{T}
 		answerindex::T
 		numguesses::T
 		showletters::Bool
 		possible_answers::Vector{S}
+		status::Symbol
 	end
 
 	function sample_random_answers(n)
@@ -864,14 +903,14 @@ begin
 		[word_index[a] for a in future_answers]
 	end
 	
-	WordleGame(;answer_index_list=sample_random_answers(5000), nguesses = 6, showletters=true) = WordleGame(0, ["", "", "", "", ""], answer_index_list, first(answer_index_list), nguesses, showletters, nyt_valid_words)
+	WordleGame(;answer_index_list=sample_random_answers(5000), nguesses = 6, showletters=true) = WordleGame(0, Vector{String}(), Vector{Vector{Int64}}(), answer_index_list, first(answer_index_list), nguesses, showletters, nyt_valid_words, :active)
 
 	WordleGame(answer::AbstractString; kwargs...) = WordleGame(;answer_index_list = [word_index[lowercase(answer)]], kwargs...)
 
 	Base.get(input::WordleGame) = Bonds.initial_value(input)
-	Bonds.initial_value(input::WordleGame) = (guessnum = 0, guess = ["", "", "", "", ""], answerindex = input.answerindex, numguesses = input.numguesses)
+	Bonds.initial_value(input::WordleGame) = (guesses = Vector{String}(), feedback = Vector{Vector{Int64}}(), answerindex = input.answerindex, numguesses = input.numguesses, status = :active)
 	Bonds.possible_values(input::WordleGame) = Bonds.InfinitePossibilities()
-	Bonds.transform_value(input::WordleGame, val_from_js) = (guessnum = val_from_js[1], guess = [lowercase(a) for a in val_from_js[2]], answerindex = val_from_js[3], numguesses = input.numguesses)
+	Bonds.transform_value(input::WordleGame, val_from_js) = (guesses = Vector{String}(val_from_js[1]), feedback = Vector{Vector{Int64}}(val_from_js[2]), answerindex = val_from_js[3], numguesses = input.numguesses, status = Symbol(val_from_js[4]))
 
 	function makelettersquare(c::Char)
 		"""
@@ -897,23 +936,6 @@ begin
 			""""""
 		end
 
-		hideletters = if game.showletters
-			""""""
-		else
-			"""
-			.wordle-game.$gameindex .letterGrid {
-				display: none;
-			}
-			"""
-		end
-
-		lettergrid = 
-		"""
-		<div class="letterGrid">
-		$(mapreduce(makelettersquare, add_elements, ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', '1', 'z', 'x', 'c', 'v', 'b', 'n', 'm', '2']))
-		</div>
-		"""
-
 		lettergrid = if game.showletters
 			nyt_keyboard
 		else
@@ -926,15 +948,19 @@ begin
 		<button class=resetgame>Reset</button>
 		<button class=newGame>New Game</button>
 		</div>
+		
 		<div class = wordle-game-grid>
 			$(mapreduce(a -> """<div class = "inputbox row$(a[1]) box$(a[2])"></div>""", add_elements, ((r, c) for r in 0:nrows-1 for c in 0:4)))
 		</div>
-		$lettergrid
 		<div class = rejectmessage></div>
+		$lettergrid
+		
 		<style>
 		$resizegrid
 		</style>
 		<script>
+			const letters = [...Array(26).keys()].map((n) => String.fromCharCode(97 + n));
+		
 			const keyLookup = {"0":48,"1":49,"2":50,"3":51,"4":52,"5":53,"6":54,"7":55,"8":56,"9":57,"d":68,"b":66,"a":65,"s":83,"i":73,"f":70,"k":75,"ß":219,"Dead":220,"+":187,"ü":186,"p":80,"o":79,"u":85,"z":90,"t":84,"r":82,"e":69,"w":87,"g":71,"h":72,"j":74,"l":76,"ö":192,"ä":222,"#":191,"q":81,"y":89,"x":88,"c":67,"v":86,"n":78,"m":77,",":188,".":190,"-":189,"ArrowRight":39,"ArrowLeft":37,"ArrowUp":38,"ArrowDown":40,"PageDown":34,"Clear":12,"Home":36,"PageUp":33,"End":35,"←":8,"↵":13};
 
 			//const keyLookup = {"0":48, "1":49};
@@ -952,8 +978,10 @@ begin
 		
 			let answerIndex = 0;
 			const gameContainer = document.querySelector(".wordle-game.$gameclass");
-			const letters = [...document.querySelectorAll(".wordle-game.$gameclass .Key-module_key__kchQI")];
-			letters.map(elem => elem.addEventListener("mousedown", handleKeyClick));
+			const letterButtons = [...document.querySelectorAll(".wordle-game.$gameclass .Key-module_key__kchQI")];
+			letterButtons.map(elem => elem.addEventListener("mousedown", handleKeyClick));
+
+			game.setAttribute('lose-message', 'Word was '+validWords[futureAnswerIndex[answerIndex]-1]);
 
 			function handleKeyClick(e) {
 				// console.log(e.target.getAttribute('data-key'));	
@@ -965,7 +993,7 @@ begin
 			span.addEventListener("keyup", handleKeyUp);
 			let col = -1;
 			let row = 0;
-			span.value = [row, ["", "", "", "", ""], $wordindex];
+			span.value = [[], [], $wordindex, 'active'];
 			let rows = $(collect(0:nrows-1));
 			const rowElems = rows.map(row => [...document.querySelectorAll(".wordle-game.$gameclass .inputbox.row"+row)]);
 
@@ -995,11 +1023,13 @@ begin
 		
 			function processKeyCode(code, key) {
 				
-				if (row == $nrows) {
+				if (span.value[3] == 'loss') {
 					console.log("game lost");
+					showMessage("game-lost");
 				}
-				else if (rowElems[Math.max(0, row-1)][0].classList.contains("win")) {
+				else if (span.value[3] == 'win') {
 					console.log("game won");
+					showMessage("game-won");
 				}
 				else {
 					let elems = rowElems[row];
@@ -1022,48 +1052,51 @@ begin
 					} else if (code == 13) { 
 			
 						if (col == 4 && elems[4].hasAttribute("label")) {
-							let currentWord = elems.map(e => e.getAttribute('label')).reduce((a, b) => a+b);
+							var currentWord = elems.map(e => e.getAttribute('label')).reduce((a, b) => a+b);
 							if (validWordSet.has(currentWord)) {
-								for (let i = 0; i<5; i++) {
-									span.value[1][i] = elems[i].getAttribute("label");
-								}
+								span.value[0][row] = currentWord;				
 								col = -1;
-								span.value[0] = row;
+								var answer = validWords[futureAnswerIndex[answerIndex]-1];
+								var feedback = getFeedback(currentWord, answer);
+								span.value[1][row] = feedback;
+								applyFeedback(feedback, elems);
 								span.dispatchEvent(new CustomEvent('input'));
 								row += 1;
 							} else {
-								let message = document.createElement("div");
+								
 								for (let i = 0; i<5; i++) {
 									let e = elems[i]
 									e.classList.remove("anim");
 									e.classList.add("invalid");
 									setTimeout(removeInvalid, 600, e);
 								}
-								let children = [...messageDisplay.childNodes];
-								let l = children.length;
-								messageDisplay.insertBefore(message, children[0]);
-								setTimeout(removeMessage, 1500, message);
-								console.log(currentWord, "is an invalid guess")
+								showMessage("not-in-list");
+								console.log(currentWord, "is an invalid guess");
 							}	
 						} else {
-							let message = document.createElement("div");
-								message.classList.add("short-guess");
+							
 								for (let i = 0; i<5; i++) {
 									let e = elems[i]
 									e.classList.remove("anim");
 									e.classList.add("invalid");
 									setTimeout(removeInvalid, 600, e);
 								}
-								let children = [...messageDisplay.childNodes];
-								messageDisplay.insertBefore(message, children[0]);
-								setTimeout(removeMessage, 1500, message);
-								console.log("Guess too short")
+								showMessage("short-guess");						
+								console.log("Guess too short");
 						}
 					}
 				}
 			}
 			function removeInvalid(e) {
 				e.classList.remove("invalid");
+			}
+
+			function showMessage(msgClass) {
+				var message = document.createElement("div");
+				message.classList.add(msgClass);
+				let children = [...messageDisplay.childNodes];
+				messageDisplay.insertBefore(message, children[0]);
+				setTimeout(removeMessage, 1500, message);
 			}
 
 			function removeMessage(c) {
@@ -1089,8 +1122,8 @@ begin
 				game.classList.remove("gamewon");
 				game.classList.remove("gamelost");
 				game.classList.remove("gameover");
-				for (let i = 0; i < letters.length; i++) {
-					removeColors(letters[i]);
+				for (let i = 0; i < letterButtons.length; i++) {
+					removeColors(letterButtons[i]);
 				}
 			}
 		
@@ -1102,8 +1135,9 @@ begin
 		
 			function resetGame() {
 				resetClasses();
-				span.value[0] = 0;
-				span.value[1] = ["", "", "", "", ""];
+				span.value[0] = [];
+				span.value[1] = [];
+				span.value[3] = 'active';
 				span.dispatchEvent(new CustomEvent('input'));
 				reset.blur();
 				span.focus();
@@ -1111,16 +1145,67 @@ begin
 		
 			function makeNewGame() {
 				resetClasses();
-				span.value[0] = 0;
-				span.value[1] = ["", "", "", "", ""];
-				span.value[2] = futureAnswerIndex[answerIndex];
+				span.value[0] = [];
+				span.value[1] = [];
+				span.value[3] = 'active';
 				answerIndex += 1;
 				if (answerIndex > futureAnswerIndex.length-1) {
 					answerIndex = 0;
 				}
+				span.value[2] = futureAnswerIndex[answerIndex];
 				span.dispatchEvent(new CustomEvent('input'));
 				newGame.blur();
 				span.focus();
+				game.setAttribute('lose-message', 'Word was '+validWords[futureAnswerIndex[answerIndex]-1]);
+			}
+
+			function getFeedback(guess, answer) {
+				let feedback = new Uint8Array(5);
+				//initialize dictionary of letter counts from answer
+				let letterCounts = Object.fromEntries([0, 1, 2, 3, 4].map(i => [answer[i], 0]));
+		
+				//green pass
+				for (let i = 0; i < guess.length; i++) {
+					let l = answer[i];
+					letterCounts[l] += 1;
+					if (guess[i] == l) {
+						feedback[i] = 2;
+						letterCounts[l] -= 1;
+					}
+				}
+				//yellow pass
+				for (let i = 0; i < guess.length; i++) {
+					let l = guess[i];
+					if (feedback[i] == 0 && letterCounts[l] > 0) {
+						feedback[i] = 1;
+						letterCounts[l] -= 1;
+					}
+				}
+				return feedback;
+			}
+
+			function applyFeedback(feedback, elems) {
+				console.log('Feedback is ' + feedback);
+				elems.map((e, index) => {
+					e.classList.remove('anim');
+					let letter = e.getAttribute("label");
+					span.querySelector('.Key-module_key__kchQI[data-key="'+letter+'"]').classList.add('feedback'+feedback[index]);
+				});
+				if (feedback.every(f => {return f == 2})) {
+					console.log('game won');
+					showMessage("game-won");
+					elems.map(e => e.classList.add('win'));
+					setTimeout(()=>{game.classList.add("gamewon")}, 2500);
+					span.value[3] = 'win';
+				} else {
+					feedback.map((f, index) => {elems[index].classList.add('feedback'+f)})
+					if (row == $(nrows-1)) {
+						console.log('game lost');
+						showMessage("game-lost");
+						setTimeout(() => {game.classList.add("gamelost")}, 1500);
+						span.value[3] = 'loss';
+					}
+				}
 			}
 			
 		</script>
@@ -1258,13 +1343,6 @@ function score_wordle_game(game; finalscore=true)
 	end
 end
 
-# ╔═╡ 8578f11a-474e-48f3-a592-4fb9b653d9ef
-#executes javascript code to restyle guess showing game feedback
-score_wordle_game(singleguess; finalscore=false)
-
-# ╔═╡ 1a3f641c-f20b-4008-8cb7-c5f1becd4845
-score_wordle_game(wordlegame)
-
 # ╔═╡ a4758d1d-be64-4412-a435-edb936ceec71
 md"""
 ## Display Games
@@ -1318,7 +1396,7 @@ function show_wordle_game(answer::AbstractString, guesses::AbstractVector{T}) wh
 
 		.wordle-game-grid:hover.gamewon *, .wordle-game-grid:hover.gamelost *, .wordle-game-grid:hover.gameover * {
 			content: '';
-			animation: showstatus 0s;
+			animation: fadein 1s;
 		}
 	
 		.wordle-game-grid:hover.gamewon::after, .$answer:hover::after {
@@ -1891,14 +1969,12 @@ version = "17.4.0+0"
 # ╟─58cece7f-7b8f-4e33-b5b7-9205b140fc34
 # ╟─65aa2783-320d-4432-bbf1-d943d99ac8d8
 # ╠═185bdee1-7ac6-48de-abd2-b2cacc20dca3
-# ╠═8578f11a-474e-48f3-a592-4fb9b653d9ef
 # ╟─3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
 # ╟─61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
 # ╟─182437d7-a2e9-442b-b2b2-e506e439119a
 # ╟─d72632c1-2873-4f04-92fa-c75ceace9753
 # ╠═213562fd-f12e-43dd-b4be-c33dca669863
 # ╠═625ea7d0-ce47-44ea-84d3-faaccd8f4b8b
-# ╠═1a3f641c-f20b-4008-8cb7-c5f1becd4845
 # ╟─5d1ff26f-80dd-40b7-83f2-d0e57853d927
 # ╠═8e87362b-0d46-4163-a69e-a686b197f820
 # ╟─e2630092-b753-4bc6-84b2-68574f1bb8ff
