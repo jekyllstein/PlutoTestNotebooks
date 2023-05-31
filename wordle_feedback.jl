@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.25
+# v0.19.26
 
 using Markdown
 using InteractiveUtils
@@ -953,7 +953,7 @@ begin
 			let answerIndex = 0;
 			const gameContainer = document.querySelector(".wordle-game.$gameclass");
 			const letters = [...document.querySelectorAll(".wordle-game.$gameclass .Key-module_key__kchQI")];
-			letters.map(elem => elem.addEventListener("click", handleKeyClick));
+			letters.map(elem => elem.addEventListener("mousedown", handleKeyClick));
 
 			function handleKeyClick(e) {
 				// console.log(e.target.getAttribute('data-key'));	
