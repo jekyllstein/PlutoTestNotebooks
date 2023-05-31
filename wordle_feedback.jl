@@ -58,6 +58,9 @@ Demonstrates input field that only accepts 5 character words which are sent to t
 # ╔═╡ ab8f97de-074d-4209-9920-74cef8a46837
 md"""### Answer"""
 
+# ╔═╡ 75cfb8c1-91c9-4564-b260-1f3adeeb0d85
+#one idea how to use the reactive part of this is to calculate from this game info the possible remaining words or display the feedback for each of those possible words for a given guess.  Can make a new thing called `preview guess` or something that shows that info
+
 # ╔═╡ 3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
 md"""
 ## View Feedback Combinations
@@ -1265,7 +1268,12 @@ $(mapreduce(a -> show_pattern(a; sizepct = 0.25), add_elements, startrange:endra
 @bind wordlegame WordleGame()
 
 # ╔═╡ 625ea7d0-ce47-44ea-84d3-faaccd8f4b8b
+#bound variable contains the results of the game as well as the answer index
 wordlegame
+
+# ╔═╡ 021c7ac4-6e98-497a-acfe-3c6f6039d6a0
+#include this to have a playable game that isn't bound to a variable so it renders properly
+WordleGame()
 
 # ╔═╡ 299dcbc1-6fd5-4171-8947-b3e2d3e8e786
 md"""
@@ -1969,12 +1977,14 @@ version = "17.4.0+0"
 # ╟─58cece7f-7b8f-4e33-b5b7-9205b140fc34
 # ╟─65aa2783-320d-4432-bbf1-d943d99ac8d8
 # ╠═185bdee1-7ac6-48de-abd2-b2cacc20dca3
+# ╠═75cfb8c1-91c9-4564-b260-1f3adeeb0d85
 # ╟─3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
 # ╟─61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
 # ╟─182437d7-a2e9-442b-b2b2-e506e439119a
 # ╟─d72632c1-2873-4f04-92fa-c75ceace9753
 # ╠═213562fd-f12e-43dd-b4be-c33dca669863
 # ╠═625ea7d0-ce47-44ea-84d3-faaccd8f4b8b
+# ╠═021c7ac4-6e98-497a-acfe-3c6f6039d6a0
 # ╟─5d1ff26f-80dd-40b7-83f2-d0e57853d927
 # ╠═8e87362b-0d46-4163-a69e-a686b197f820
 # ╟─e2630092-b753-4bc6-84b2-68574f1bb8ff
