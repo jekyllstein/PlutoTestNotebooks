@@ -277,147 +277,6 @@ const wordlegamestyle = HTML("""
 </style>
 """)
 
-# ╔═╡ 26477fae-cf0f-41e1-92fc-5e2bfd7ff870
-const endgame_styles = HTML("""
-<style>
-	.gamewin::before {
-		content: '';
-		position: absolute;
-		width: calc(var(--container-width));
-		height: 100%;
-		padding: 0;
-		margin: 0;
-		background-color: rgba(50, 50, 50, 0.8);
-		animation: fadein 3s;
-		
-	}
-	.gamewin::after {
-		content: 'Game Won!';
-		position: absolute;
-		width: calc(var(--container-width));
-		height: calc(var(--container-width)*6/5);
-		padding: 0;
-		margin: 0;
-		font-family: "Arial", sans-serif;
-		font-weight: bold;
-		-webkit-font-smoothing: antialiased;
-		text-transform: uppercase;
-		font-size: calc(var(--container-width)/5/2.0); 
-		color: white;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		animation: winmessage 3s;
-	}
-	@keyframes winmessage {
-		0% {opacity: 0;}
-		60% {opacity: 0; transform: scale(0.4);}
-		80% {transform: scale(1.5);}
-		100% {transform: scale(1.0);}
-	}
-
-	.gamewin:hover::after {
-		animation: fadeout 1s forwards;
-	}
-
-	.gamewin:hover::before {
-		animation: fadeout 1s forwards;
-	}
-
-	@keyframes fadein {
-		0% {opacity: 0;}
-	}
-
-	@keyframes fadeout {
-		100% {opacity: 0;}
-	}
-
-	@keyframes repeatwin {
-		0% {transform: rotate(0deg);}
-		25% {transform: rotate(180deg);}
-		50% {transform: rotate(360deg);}
-		75% {transform: rotate(540deg);}
-		100% {transform: rotate(720deg);}
-	}
-
-	@keyframes winoverlay {
-		0% {opacity: 0}
-		60% {opacity: 0}
-	}
-
-	.gamelost::before {
-		content: 'Hover to See Word';
-		position: absolute;
-		background-size: 100%;
-		left: 0;
-		top: 0;
-		width: 100%;
-		height: 100%;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		justify-content: center;
-		font-family: "Arial", sans-serif;
-		font-weight: bold;
-		-webkit-font-smoothing: antialiased;
-		text-transform: uppercase;
-		font-size: calc(var(--container-width)/5/5.0); 
-		background-color: rgba(20, 20, 20, 0.5);
-		border: 2px solid rgba(20, 20, 20, 0.5);
-		animation: fadein 3s;
-	}
-
-	.gamelost:hover::before {
-		animation: fadeout 1s forwards;
-	}
-
-	.gamelost::after {
-		content: 'Game Lost :(';
-		position: absolute;
-		padding: calc(var(--container-width)/35);
-		font-family: "Arial", sans-serif;
-		font-weight: bold;
-		-webkit-font-smoothing: antialiased;
-		text-transform: uppercase;
-		font-size: calc(var(--container-width)/5/2.0); 
-		animation: losemessage 3s forwards;
-	}
-
-	@keyframes losemessage {
-		0%,25% {color: rgba(0, 0, 0, 0); transform: translateX(calc(var(--container-width)/7)) translateY(10%);}
-		50% {color: red; transform: translateX(calc(var(--container-width)/7)) translateY(100%);}
-		75%, 100% {transform: translateX(calc(var(--container-width)/7)) translateY(50%);}
-	}
-
-	@keyframes loseoverlay {
-		0% {opacity: 0; color: rgba(0, 0, 0, 0);}
-		50% {opacity: 0; color: rgba(0, 0, 0, 0);}
-		100% {opacity: 1;}
-	}
-
-	.wordle-game .gamelost:hover::after {
-		content: attr(lose-message);
-		font-family: "Arial", sans-serif;
-		font-weight: bold;
-		-webkit-font-smoothing: antialiased;
-		text-transform: uppercase;
-		font-size: calc(var(--container-width)/5/3.0); 
-		color: green;
-		text-shadow: 3px 3px black;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		background-color: rgba(20, 20, 20, 0.7);
-		border: 2px solid rgba(0, 0, 0, 0);
-		animation: showtext 1s forwards;
-	}
-	@keyframes showtext {
-		0% {opacity: 0;}
-		100% {opacity: 1; transform: translateX(50px);}
-	}
-</style>
-""")
-
 # ╔═╡ 0b6f51cc-7014-4cc8-a346-a6f6f4f8ad00
 function add_style(block::String)
 	HTML("""
@@ -527,10 +386,10 @@ const basewordlestyle = HTML(
 		$(mapreduce(stylelabel, add_elements, 'a':'z'))
 
 		.wordle-box:hover .inputbox {
-			animation: fadeout 1s forwards;
+			animation: fadeout 0s;
 		}
 		.wordle-box:hover .inputbox* {
-			animation: fadeout 1s forwards;
+			animation: fadeout 0s;
 		}
 
 		@keyframes rowbounce {
@@ -580,16 +439,22 @@ const basewordlestyle = HTML(
 
 		
 		@keyframes addcolor0 {
-			from {border: 2px solid #3a3a3c;}
-			to {background-color: $(colorlookup[0]); border: 0px solid rgba(0, 0, 0, 0);}
+			0% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			50% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			51% {background-color: $(colorlookup[0]); border: 0px solid rgba(0, 0, 0, 0);}
+			100% {background-color: $(colorlookup[0]); border: 0px solid rgba(0, 0, 0, 0);}
 		}
 		@keyframes addcolor1 {
-			from {border: 2px solid #3a3a3c;}
-			to {background-color: $(colorlookup[1]); border: 0px solid rgba(0, 0, 0, 0);}
+			0% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			50% {background-color: rgba(0, 0, 0, 0);border: 2px solid rgb(86, 87, 88);}
+			51% {background-color: $(colorlookup[1]); border: 0px solid rgba(0, 0, 0, 0);}
+			100% {background-color: $(colorlookup[1]); border: 0px solid rgba(0, 0, 0, 0);}
 		}
 		@keyframes addcolor2 {
-			from {border: 2px solid #3a3a3c;}
-			to {background-color: $(colorlookup[2]); border: 0px solid rgba(0, 0, 0, 0);}
+			0% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			50% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			51% {background-color: $(colorlookup[2]); border: 0px solid rgba(0, 0, 0, 0);}
+			100% {background-color: $(colorlookup[2]); border: 0px solid rgba(0, 0, 0, 0);}
 		}
 
 	.rejectmessage {
@@ -649,6 +514,155 @@ const basewordlestyle = HTML(
 	</style>
 	"""
 )
+
+# ╔═╡ 26477fae-cf0f-41e1-92fc-5e2bfd7ff870
+const endgame_styles = HTML("""
+<style>
+	.gamewin::before {
+		content: '';
+		position: absolute;
+		width: calc(var(--container-width));
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		background-color: rgba(50, 50, 50, 0.8);
+		animation: fadein 3s;
+		
+	}
+	.gamewin::after {
+		content: 'Game Won!';
+		position: absolute;
+		width: calc(var(--container-width));
+		height: calc(var(--container-width)*6/5);
+		padding: 0;
+		margin: 0;
+		font-family: "Arial", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/2.0); 
+		color: white;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		animation: winmessage 3s;
+	}
+	@keyframes winmessage {
+		0% {opacity: 0;}
+		60% {opacity: 0; transform: scale(0.4);}
+		80% {transform: scale(1.5);}
+		100% {transform: scale(1.0);}
+	}
+
+	.gamewin:hover::after {
+		animation: fadeout 1s forwards;
+	}
+
+	.gamewin:hover::before {
+		animation: fadeout 1s forwards;
+	}
+
+	@keyframes fadein {
+		0% {opacity: 0;}
+	}
+
+	@keyframes fadeout {
+		100% {opacity: 0;}
+	}
+
+	@keyframes repeatwin {
+		0% {transform: rotate(0deg);}
+		25% {transform: rotate(180deg);}
+		50% {transform: rotate(360deg);}
+		75% {transform: rotate(540deg);}
+		100% {transform: rotate(720deg);}
+	}
+
+	@keyframes winoverlay {
+		0% {opacity: 0}
+		60% {opacity: 0}
+	}
+
+	.gamelost::before {
+		content: 'Hover to See Word';
+		position: absolute;
+		background-size: 100%;
+		left: 0;
+		top: 0;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		justify-content: center;
+		font-family: "Arial", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/5.0); 
+		background-color: rgba(20, 20, 20, 0.5);
+		border: 2px solid rgba(20, 20, 20, 0.5);
+		animation: fadein 3s;
+	}
+
+	.gamelost:hover::before {
+		animation: fadeout 0s forwards;
+	}
+
+	.gamelost::after {
+		content: 'Game Lost :(';
+		position: absolute;
+		padding: calc(var(--container-width)/35);
+		font-family: "Arial", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/2.0); 
+		animation: losemessage 3s forwards;
+	}
+
+	@keyframes losemessage {
+		0%,25% {color: rgba(0, 0, 0, 0); transform: translateX(calc(var(--container-width)/7)) translateY(10%);}
+		50% {color: red; transform: translateX(calc(var(--container-width)/7)) translateY(100%);}
+		75%, 100% {transform: translateX(calc(var(--container-width)/7)) translateY(50%);}
+	}
+
+	@keyframes loseoverlay {
+		0% {opacity: 0; color: rgba(0, 0, 0, 0);}
+		50% {opacity: 0; color: rgba(0, 0, 0, 0);}
+		100% {opacity: 1;}
+	}
+
+	.wordle-game .gamelost:hover::after {
+		content: attr(lose-message);
+		font-family: "Arial", sans-serif;
+		font-weight: bold;
+		-webkit-font-smoothing: antialiased;
+		text-transform: uppercase;
+		font-size: calc(var(--container-width)/5/3.0); 
+		color: green;
+		text-shadow: 3px 3px black;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		background-color: rgba(20, 20, 20, 0.7);
+		border: 2px solid rgba(0, 0, 0, 0);
+		animation: showtext 1s forwards;
+	}
+	@keyframes showtext {
+		0% {opacity: 0;}
+		100% {opacity: 1; transform: translateX(50px);}
+	}
+
+	$(mapreduce(add_elements, 0:4) do i
+	"""
+	.box$i.win {
+		animation: rowbounce 1000ms $(100*i + 600)ms;			
+		}
+	"""
+	end)
+</style>
+""")
 
 # ╔═╡ c9b7b336-032e-4597-a529-0df2f841f2cf
 const inputstyle = HTML("""
@@ -1193,21 +1207,22 @@ begin
 					e.classList.remove('anim');
 					let letter = e.getAttribute("label");
 					span.querySelector('.Key-module_key__kchQI[data-key="'+letter+'"]').classList.add('feedback'+feedback[index]);
+					setTimeout(() => e.classList.add('feedback'+feedback[index]), 200*index);
 				});
 				if (feedback.every(f => {return f == 2})) {
 					console.log('game won');
-					showMessage("game-won");
-					elems.map(e => e.classList.add('win'));
-					setTimeout(()=>{game.classList.add("gamewon")}, 2500);
+					setTimeout(() => showMessage("game-won"), 1900);
+					elems.map((e, index) => setTimeout(() => {
+						e.classList.remove('feedback2');
+						e.classList.add('win');
+					}, 1400));
+					setTimeout(()=>{game.classList.add("gamewon")}, 2000);
 					span.value[3] = 'win';
-				} else {
-					feedback.map((f, index) => {elems[index].classList.add('feedback'+f)})
-					if (row == $(nrows-1)) {
-						console.log('game lost');
-						showMessage("game-lost");
-						setTimeout(() => {game.classList.add("gamelost")}, 1500);
-						span.value[3] = 'loss';
-					}
+				} else if (row == $(nrows-1)) {
+					console.log('game lost');
+					setTimeout(() => showMessage("game-lost"), 1900);
+					setTimeout(() => {game.classList.add("gamelost")}, 1500);
+					span.value[3] = 'loss';
 				}
 			}
 			
@@ -1375,7 +1390,7 @@ function show_wordle_game(answer::AbstractString, guesses::AbstractVector{T}) wh
 	
 	extraclasses(classlist...) = isempty(classlist) ? "" : reduce((a, b) -> "$a $b", classlist)
 	
-	makebox(r, c, content, classlist...) = """<div class = "$(boxclass(r, c)) $(extraclasses(classlist...))">$content</div>"""
+	makebox(r, c, content, classlist...) = """<div class = "$(boxclass(r, c)) $(extraclasses(classlist...))" label = $(lowercase(content))></div>"""
 	
 	makefeedbackbox(r, c) = makebox(r, c, guesses[r][c], "feedback$(feedbacklist[r][c])")
 	
