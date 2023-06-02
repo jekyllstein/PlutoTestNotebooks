@@ -61,9 +61,6 @@ Demonstrates input field that only accepts 5 character words which are sent to t
 # ╔═╡ ab8f97de-074d-4209-9920-74cef8a46837
 md"""### Answer"""
 
-# ╔═╡ 75cfb8c1-91c9-4564-b260-1f3adeeb0d85
-#one idea how to use the reactive part of this is to calculate from this game info the possible remaining words or display the feedback for each of those possible words for a given guess.  Can make a new thing called `preview guess` or something that shows that info
-
 # ╔═╡ 3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
 md"""
 ## View Feedback Combinations
@@ -75,8 +72,11 @@ md"""
 ## Playable Game
 """
 
-# ╔═╡ 78512293-cd02-46ca-958d-d8d454b7d8a5
-#add a cell to input guesses and feedback to send to evaluation function
+# ╔═╡ f3bf9d9e-ea45-499b-97ba-75326ed11d0f
+md"""
+## Wordle Game Input
+This element can be used to enter the results of another wordle game played elsewhere.  Clicking on the letters of a word will toggle the feedback colors and the results for each round will be updated after hitting enter.  
+"""
 
 # ╔═╡ 5d1ff26f-80dd-40b7-83f2-d0e57853d927
 md"""
@@ -216,7 +216,7 @@ const wordlegamestyle = HTML("""
 	.buttons * {
 		font-size: 1em;
 	}
-	.wordle-game {
+	.wordle-game, .wordle-game-input {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -381,7 +381,6 @@ const basewordlestyle = HTML(
 			margin: calc(var(--container-width)/15);
 			position: relative;
 		}
-	
 		
 		.inputbox {
 			display: inline-flex;
@@ -534,7 +533,17 @@ const basewordlestyle = HTML(
 	.rejectmessage .short-guess::before {
 		content: 'Not enough letters';
 	}
+	
+	.rejectmessage .incomplete-feedback::before {
+		content: 'Incomplete feedback';
+	}
 
+	.rejectmessage .submitted-feedback::before {
+		content: 'Feedback submitted!';
+		color: green;
+		background-color: rgba(20, 20, 20, 0.5);
+	}
+	
 	.rejectmessage .game-won::before {
 		content: 'Congratulations!';
 		color: green;
@@ -751,7 +760,7 @@ function makeanimationclass(fval::Integer, i::Integer, iswin::Bool)
 		"""
 	else
 		"""
-		.box$i.feedback$fval {
+		.box$i.feedback$fval,.box$i[feedback="$fval"] {
 			animation: 	flipin $fliptime $(delaytime)ms ease-in, 
 						flipout $fliptime $(delaytime+250)ms ease-in,
 						addcolor$fval 500ms $(delaytime)ms ease-in forwards;
@@ -852,7 +861,7 @@ md"""
 # ╔═╡ 24327929-c8f5-45b2-80ad-c873daedf677
 import AbstractPlutoDingetjes.Bonds
 
-# ╔═╡ ca1cd33a-3d41-4878-8b95-7b7f44353695
+# ╔═╡ f67bd8ab-415a-434b-9ebd-631e502e0237
 begin
 	struct WordleInput{T <: AbstractString}
 		word::T
@@ -947,7 +956,7 @@ function eval_group(possible_feedback::AbstractVector{T}; weights = ones(length(
 	end
 
 	#after each guess what is the expected value of how many possible words would be remaining
-	(feedback_counts = feedback_counts, feedback_probabilities = feedback_probabilities, expectedvalue = sum(prod, zip(feedback_counts, feedback_probabilities)))
+	(feedback_counts = feedback_counts, feedback_probabilities = feedback_probabilities, expectedvalue = sum(prod, zip(feedback_counts, feedback_probabilities)), worstvalue=maximum(feedback_counts))
 end
 
 # ╔═╡ bff5b402-5eb5-4885-aea0-17b48bde86b3
@@ -1010,8 +1019,7 @@ get_possible_words([(1, 0), (2, 0)])
 
 # ╔═╡ 73a4d07c-0c94-40d0-a4c0-83ce4386ca6b
 begin
-	function eval_guesses(possible_indices, weights; hard_mode = false)
-		possible_guess_indices = hard_mode ? possible_indices : eachindex(nyt_valid_words)
+	function eval_guesses(possible_indices, weights, possible_guess_indices)
 		answer_probabilities = weights ./ sum(weights)
 		ranked_answers = [(answer = nyt_valid_words[possible_indices[i]], probability = answer_probabilities[i]) for i in sortperm(answer_probabilities, rev=true)]
 		results = [eval_group(view(feedback_matrix, i, possible_indices); weights = weights) for i in possible_guess_indices]
@@ -1019,17 +1027,26 @@ begin
 		win_probabilities = [last(a.feedback_probabilities) for a in results]
 		inds1 = sortperm(win_probabilities, rev = true)
 		inds2 = sortperm(expected_values[inds1])
-		ranked_guesses = [(guess = nyt_valid_words[possible_guess_indices[i]], expected_value = expected_values[i], win_probability = win_probabilities[i]) for i in view(inds1, inds2)]
+		ranked_guesses = [(guess = nyt_valid_words[possible_guess_indices[i]], expected_value = expected_values[i], win_probability = win_probabilities[i], worst_value = results[i].worstvalue) for i in view(inds1, inds2)]
 		(ranked_answers = ranked_answers, ranked_guesses = ranked_guesses)
 	end
 	
-	function eval_guesses(gamesteps; weights = ones(lastindex(nyt_valid_words)), hard_mode=false)
-		isempty(gamesteps) && haskey(blank_game_evals, hash(weights)) && return blank_game_evals[hash(weights)]
-		possible_indices = get_possible_indices(gamesteps)
-		eval_guesses(possible_indices, view(weights, possible_indices); hard_mode=hard_mode)
+	function eval_guesses(gamesteps; weights = ones(lastindex(nyt_valid_words)), hardmode = false, undosteps = Vector{Tuple{String, Vector{Int64}}}()) 
+		isempty(gamesteps) && isempty(undosteps) && haskey(blank_game_evals, hash(weights)) && return blank_game_evals[hash(weights)]
+		hard_mode_indices = get_possible_indices(gamesteps)
+		answer_indices = intersect(get_possible_indices(undosteps), hard_mode_indices)
+		possible_guess_indices = hardmode ? hard_mode_indices : eachindex(nyt_valid_words)
+		eval_guesses(answer_indices, view(weights, answer_indices), possible_guess_indices)
 	end
 	
-	const blank_game_evals = Dict(hash(weights) => eval_guesses(eachindex(nyt_valid_words), weights) for weights = [get_word_freq.(nyt_valid_words), ones(lastindex(nyt_valid_words)), uniform_ncommon_weights()])
+	const blank_game_evals = Dict(hash(weights) => eval_guesses(eachindex(nyt_valid_words), weights, eachindex(nyt_valid_words)) for weights = [get_word_freq.(nyt_valid_words), ones(lastindex(nyt_valid_words)), uniform_ncommon_weights()])
+end
+
+# ╔═╡ 28564c92-86a1-43f0-b0c3-3e96dc405584
+function show_game_eval(wordlegame; reverserank = false, kwargs...)
+	wordlegame_eval = eval_guesses(zip(wordlegame.guesses, wordlegame.feedback); kwargs...)
+	f = reverserank ? Iterators.reverse : identity
+	[DataFrame(f(wordlegame_eval.ranked_answers)), DataFrame(f(wordlegame_eval.ranked_guesses))]
 end
 
 # ╔═╡ 00e5cce8-b8a9-46a9-bebb-7da561cddbda
@@ -1047,6 +1064,419 @@ sample_answer() = wsample(collect(keys(word_frequencies)), collect(values(word_f
 md"""
 ## Wordle Game Element
 """
+
+# ╔═╡ 3d3573e8-e139-49ae-9149-e409817f5af3
+mapreduce(add_elements, 1:5) do nrows
+	"""
+	.wordle-game-input.maxrows$nrows .wordle-game-grid {
+		height: calc(var(--container-width)*$nrows/5);
+	}
+	"""
+end |> add_style
+
+# ╔═╡ 5d02032f-7c57-4c3f-95e2-91b943437a3f
+add_style("""
+
+	.inputbox.feedback0.locked {
+		animation: flipin 250ms ease-in, flipout 250ms 250ms ease-in, addcolor0 500ms ease-in forwards, addborder 250ms 250ms forwards;
+	}
+
+	.inputbox.feedback1.locked {
+		animation: flipin 250ms ease-in, flipout 250ms 250ms ease-in, addcolor1 500ms ease-in forwards, addborder 250ms 250ms forwards;
+	}
+
+	.inputbox.feedback2.locked {
+		animation: flipin 250ms ease-in, flipout 250ms 250ms ease-in, addcolor2 500ms ease-in forwards, addborder 250ms 250ms forwards;
+	}
+
+
+
+	.inputrow {
+		display: grid;
+		grid-template-columns: repeat(5, 1fr);
+		grid-gap: 5px;
+		width: calc(var(--container-width));
+	}
+
+	.inputrow.locked {
+		//background-color: rgb(40, 40, 40);
+		//border: 3mm ridge rgba(100, 200, 100, .4);
+		//box-shadow: 3px 3px forestgreen;
+		animation: addborder 500ms forwards;
+	}
+
+	@keyframes addborder {
+		100% {background-color: rgb(40, 40, 40); border: 3mm ridge rgba(100, 200, 100, .4);}
+	}
+
+	.wordle-game-rows {
+		display: grid;
+		grid-gap: 5px;
+		padding: 10px;
+	}
+	
+""")
+
+# ╔═╡ bb480846-09d2-42e8-a8a8-9f57a35c8b05
+
+
+# ╔═╡ 33e0bbc0-d478-4e1e-bf77-94ba25f6fdc0
+md"""
+## Wordle Game Input
+"""
+
+# ╔═╡ 40e28b8d-2fad-4da3-90f4-ccdd984da38f
+begin
+	struct WordleGameInput{T <: Integer, S <: AbstractString}
+		guessnum::T
+		guesses::Vector{S}
+		feedback::Vector{Vector{T}}
+		numguesses::T
+		showletters::Bool
+		possible_answers::Vector{S}
+		status::Symbol
+		undos::Vector{Tuple{Vector{S}, Vector{T}}}
+	end
+	
+	WordleGameInput(;nguesses = 6, showletters=true) = WordleGameInput(0, Vector{String}(), Vector{Vector{Int64}}(), nguesses, showletters, nyt_valid_words, :active, Vector{Tuple{Vector{String}, Vector{Int64}}}())
+
+	Base.get(input::WordleGameInput) = Bonds.initial_value(input)
+	Bonds.initial_value(input::WordleGameInput) = (guesses = Vector{String}(), feedback = Vector{Vector{Int64}}(), numguesses = input.numguesses, status = :active)
+	Bonds.possible_values(input::WordleGameInput) = Bonds.InfinitePossibilities()
+	Bonds.transform_value(input::WordleGameInput, val_from_js) = (guesses = Vector{String}(val_from_js[1]), feedback = Vector{Vector{Int64}}(val_from_js[2]), numguesses = input.numguesses, status = Symbol(val_from_js[3]), undos = isempty(val_from_js[4]) ? input.undos : collect(zip(val_from_js[4], val_from_js[5])))
+	
+	function Bonds.show(io::IO, m::MIME"text/html", game::WordleGameInput)
+		nrows = game.numguesses
+
+		lettergrid = if game.showletters
+			nyt_keyboard
+		else
+			""""""
+		end
+
+		makerow(r) = mapreduce(c -> """<div class = "inputbox box0" row = "$r" tabindex=0></div>""", add_elements, 0:4)
+		
+		show(io, m, HTML("""
+		<span class = "wordle-game-input maxrows$nrows" tabindex=0>
+		<div class = "buttons">
+		<button class=resetgame>Reset</button>
+		<button class=undoguess>Undo Guess</button>
+		<button class=clearundo>Clear Undos</button>
+		</div>
+		
+		<div class = wordle-game-rows>
+			$(mapreduce(r -> 
+				"""
+				<div class = "inputrow row$r">
+					$(makerow(r))
+				</div>
+				"""
+				, add_elements, 0:nrows-1))
+		</div>
+		<div class = rejectmessage></div>
+		$lettergrid
+		
+		<script>
+			const letters = [...Array(26).keys()].map((n) => String.fromCharCode(97 + n));
+		
+			const keyLookup = {"0":48,"1":49,"2":50,"3":51,"4":52,"5":53,"6":54,"7":55,"8":56,"9":57,"d":68,"b":66,"a":65,"s":83,"i":73,"f":70,"k":75,"ß":219,"Dead":220,"+":187,"ü":186,"p":80,"o":79,"u":85,"z":90,"t":84,"r":82,"e":69,"w":87,"g":71,"h":72,"j":74,"l":76,"ö":192,"ä":222,"#":191,"q":81,"y":89,"x":88,"c":67,"v":86,"n":78,"m":77,",":188,".":190,"-":189,"ArrowRight":39,"ArrowLeft":37,"ArrowUp":38,"ArrowDown":40,"PageDown":34,"Clear":12,"Home":36,"PageUp":33,"End":35,"←":8,"↵":13};
+
+			//const keyLookup = {"0":48, "1":49};
+			const span = currentScript.parentElement;
+			const reset = span.querySelector(".resetgame");
+			const undo = span.querySelector(".undoguess");
+			const clearUndosButton = span.querySelector(".clearundo");
+			reset.addEventListener("click", resetGame);
+			undo.addEventListener("click", undoGuess);
+			clearUndosButton.addEventListener("click", clearUndos);
+		
+			const game = span.querySelector(".wordle-game-grid");
+			const messageDisplay = span.querySelector(".rejectmessage");
+			const validWords = $(game.possible_answers);
+			const validWordSet = new Set(validWords);
+			const rowElements = [...span.querySelectorAll(".inputrow")];
+		
+			let answerIndex = 0;
+			const gameContainer = span.querySelector(".wordle-game-input");
+			const letterButtons = [...span.querySelectorAll(".Key-module_key__kchQI")];
+			letterButtons.map(elem => elem.addEventListener("mousedown", handleKeyClick));
+
+			function handleKeyClick(e) {
+				// console.log(e.target.getAttribute('data-key'));	
+				let key = e.target.getAttribute('data-key');
+				processKeyCode(keyLookup[key], key);
+			}
+		
+			span.addEventListener("keydown", handleKeyDown);
+			span.addEventListener("keyup", handleKeyUp);
+			let col = -1;
+			let row = 0;
+			span.value = [[], [], 'active', [], []];
+			let rows = $(collect(0:nrows-1));
+			const rowElems = rows.map(row => [...span.querySelectorAll('.inputbox[row="'+row+'"]')]);
+
+			const inputBoxes = [...span.querySelectorAll(".inputbox")];
+			inputBoxes.map(e => e.addEventListener("click", feedbackClick));
+
+			function toggleFeedback(classes, num, time) {
+				setTimeout(()=>classes.add("feedback"+num), time);
+			}
+		
+			function feedbackClick(e) {
+				let elem = e.target
+				let r = elem.getAttribute("row");
+				let rowParent = span.querySelector('.inputrow.row'+r);
+				if (e.target.hasAttribute("label") && !rowParent.classList.contains("locked")) {
+					let newf = 0;
+					if (elem.hasAttribute("feedback")) {
+						let f = elem.getAttribute("feedback");
+						newf = parseInt(f) + 1;
+						if (newf == 3) {newf = 0;}
+						
+						elem.setAttribute('feedback', newf);
+					}
+					elem.classList.remove("anim");
+					elem.removeAttribute('feedback');
+					setTimeout(() => elem.setAttribute('feedback', newf), 1);
+				}
+			}
+
+			function checkFeedback(elem) {
+				let v = [0, 1, 2];
+				//console.log(elem.classList);
+				let out = v.some(v => elem.classList.contains('feedback'+v));
+				//console.log('check feedback is '+out);
+				return out;
+			}
+
+			function getFeedback(elem) {
+				let classes = elem.classList;
+				let f = -1
+				if (classes.contains('feedback0')) {
+					f = 0;
+				} else if (classes.contains('feedback1')) {
+					f = 1;
+				} else if (classes.contains('feedback2')) {
+					f = 2;
+				}
+				return f;
+			}
+
+			function getRowFeedback(elems) {
+				elems.map(e => getFeedback(e));
+			}
+			
+
+			function getKeySelector(e) {
+				let k = e.key; 
+				if (e.key == "Backspace") {
+					k = "←";
+				} else if (e.key == "Enter") {
+					k = "↵";
+				}
+							
+				let selector = '.Key-module_key__kchQI[data-key="' + k + '"]'
+				// console.log(selector);
+				return selector;
+			}
+
+			function handleKeyDown(e) {
+				let selector = getKeySelector(e);
+				span.querySelector(selector).classList.add('pressed');
+				processKeyCode(e.keyCode, e.key);
+			}
+
+			function handleKeyUp(e) {
+				let selector = getKeySelector(e);
+				span.querySelector(selector).classList.remove('pressed');
+			}
+
+			function removeClasses(elem) {
+				let classes = ["anim", "feedback0", "feedback1", "feedback2"];
+				classes.map(c => elem.classList.remove(c));
+			}
+
+			function lockInput(elem) {
+				elem.classList.add("locked");
+			}
+		
+			function processKeyCode(code, key) {
+				
+				if (span.value[3] == 'loss') {
+					console.log("game lost");
+					showMessage("game-lost");
+				}
+				else if (span.value[3] == 'win') {
+					console.log("game won");
+					showMessage("game-won");
+				}
+				else {
+					let elems = rowElems[row];
+					if (code >= 65 && code <= 90) {
+						col += 1;
+						if (col > 4) {
+							col = 4;
+						}
+						elems[col].classList.add("anim");
+						elems[col].setAttribute('label', key);
+					} else if (code == 8) {
+						if (col > -1) {
+							elems[col].removeAttribute('label');
+							elems[col].removeAttribute('feedback');
+							removeClasses(elems[col]);
+						}
+						col -= 1;
+						if (col < -1) {
+							col = -1;
+						}
+					} else if (code == 13) { 
+						let fullWord = elems.every(e => e.hasAttribute("label"))
+						let fullFeedback = elems.every(e => e.hasAttribute('feedback'));
+						if (col == 4 && fullWord && fullFeedback) {
+							var currentWord = elems.map(e => e.getAttribute('label')).reduce((a, b) => a+b);
+							if (validWordSet.has(currentWord)) {
+								span.value[0][row] = currentWord;				
+								col = -1;
+								var feedback = elems.map(e => parseInt(e.getAttribute('feedback')));
+								span.value[1][row] = feedback;
+								span.dispatchEvent(new CustomEvent('input'));
+								showMessage("submitted-feedback");
+								// elems.map(e => lockInput(e));
+								rowElements[row].classList.add("locked");
+								applyFeedback(feedback, elems);
+								row += 1;
+							} else {
+								let rmClasses = ['anim', 'feedback0', 'feedback1', 'feedback2']
+								elems.map(e => {
+									rmClasses.map(c => e.classList.remove(c));
+									e.classList.add("invalid");
+									e.removeAttribute('feedback');
+									setTimeout(removeInvalid, 600, e);
+								})
+								showMessage("not-in-list");
+								console.log(currentWord, "is an invalid guess");
+							}	
+						} else {
+							if (!fullWord) {
+								showMessage("short-guess");						
+								console.log("Guess too short");
+							} else if (!fullFeedback) {
+								showMessage("incomplete-feedback");
+								console.log("Incomplete feedback");
+							}
+		
+							for (let i = 0; i<5; i++) {
+								let e = elems[i]
+								e.classList.remove("anim");
+								e.classList.add("invalid");
+								setTimeout(removeInvalid, 600, e);
+							}
+							
+						}
+					}
+				}
+			}
+			function removeInvalid(e) {
+				e.classList.remove("invalid");
+			}
+
+			function showMessage(msgClass) {
+				var message = document.createElement("div");
+				message.classList.add(msgClass);
+				let children = [...messageDisplay.childNodes];
+				messageDisplay.insertBefore(message, children[0]);
+				setTimeout(removeMessage, 1500, message);
+			}
+
+			function removeMessage(c) {
+				messageDisplay.removeChild(c);
+				if (!messageDisplay.hasChildNodes()) {
+					messageDisplay.classList.remove("displaymessage");
+					messageDisplay.classList.remove("short-guess");
+				}
+			}
+		
+			function resetClasses() {
+				col = -1;
+				row = 0;
+				inputBoxes.map(elem => {
+					elem.removeAttribute("label");
+					let classes = ["anim", "invalid", "win"]
+					classes.map(c => elem.classList.remove(c));
+					elem.removeAttribute('feedback');
+				})
+				for (let i = 0; i < letterButtons.length; i++) {
+					removeColors(letterButtons[i]);
+				}
+				rowElements.map(e => e.classList.remove("locked"));
+			}
+
+			function undoGuess() {
+				if (row > 0) {
+					col = -1;
+					rowElements[row-1].classList.remove("locked");
+					
+					let boxes1 = [...span.querySelectorAll('.inputbox[row="'+(row-1)+'"]')];
+					let boxes2 = [...span.querySelectorAll('.inputbox[row="'+row+'"]')];
+					
+					function clearBoxes(boxes) {
+						boxes.map(elem => {
+							elem.removeAttribute("label");
+							let classes = ["anim", "invalid", "win"]
+							classes.map(c => elem.classList.remove(c));
+							elem.removeAttribute('feedback');
+						})
+					}
+					clearBoxes(boxes1);
+					clearBoxes(boxes2);
+					// transfer guess and feedback to undo lists
+					span.value[3].push(span.value[0].pop())
+					span.value[4].push(span.value[1].pop())
+					span.dispatchEvent(new CustomEvent('input'));
+					row -= 1;
+				}
+			}
+
+			function clearUndos() {
+				span.value[3] = [];
+				span.value[4] = [];
+				span.dispatchEvent(new CustomEvent('input'));
+			}
+			
+		
+			function removeColors(item) {
+				item.classList.remove("feedback0");
+				item.classList.remove("feedback1");
+				item.classList.remove("feedback2");
+			}
+		
+			function resetGame() {
+				resetClasses();
+				span.value[0] = [];
+				span.value[1] = [];
+				span.value[2] = 'active';
+				span.value[3] = [];
+				span.value[4] = [];
+				span.dispatchEvent(new CustomEvent('input'));
+				reset.blur();
+				span.focus();
+			}
+
+			function applyFeedback(feedback, elems) {
+				console.log('Feedback is ' + feedback);
+				elems.map((e, index) => {
+					e.classList.remove('anim');
+					let letter = e.getAttribute("label");
+					span.querySelector('.Key-module_key__kchQI[data-key="'+letter+'"]').classList.add('feedback'+feedback[index]);
+				});
+			}
+			
+		</script>
+		</span>
+		"""))
+	end
+	#add event listeners for keyboard keys and change layout to querty
+end
 
 # ╔═╡ bb2ac4f1-4a9b-4363-982c-e5fc0b488db6
 begin
@@ -1429,32 +1859,48 @@ $(mapreduce(a -> show_pattern(a; sizepct = 0.25), add_elements, startrange:endra
 # this cell is not recomputed when the game is played. all the restyling is done with javascript
 @bind wordlegame WordleGame(answer_index_list = [word_index[uniform_ncommon_sample()] for _ in 1:5000])
 
-# ╔═╡ 625ea7d0-ce47-44ea-84d3-faaccd8f4b8b
+# ╔═╡ 67c4d0e0-bc72-43bb-b3c5-241962d4addb
 #bound variable contains the results of the game as well as the answer index
 wordlegame
 
 # ╔═╡ b1880e23-24e7-45c3-9c9d-795bdcfe5a1d
 md"""
-### Guess Evaluation Function
+### Evaluate Guesses for Playable Game
 
 Hard Mode Guesses: $(@bind hard_mode CheckBox()) Reverse Sorting: $(@bind bad_guesses CheckBox())
 """
 
-# ╔═╡ 06ee1945-18fb-4e3b-8b74-e05563c7e181
-wordlegame_eval = eval_guesses(zip(wordlegame.guesses, wordlegame.feedback); weights = uniform_ncommon_weights(), hard_mode = hard_mode)
-
-# ╔═╡ 4685efa4-4bc1-40d3-94e6-9e010c4c2eef
-begin
-	if bad_guesses
-		[DataFrame(Iterators.reverse(wordlegame_eval.ranked_answers)), DataFrame(Iterators.reverse(wordlegame_eval.ranked_guesses))]
-	else
-		[DataFrame(wordlegame_eval.ranked_answers), DataFrame(wordlegame_eval.ranked_guesses)]
-	end
-end
+# ╔═╡ 3f05919a-5d19-4e92-8714-607b1687e834
+show_game_eval(wordlegame; reverserank = bad_guesses, hardmode = hard_mode, weights = uniform_ncommon_weights())
 
 # ╔═╡ 021c7ac4-6e98-497a-acfe-3c6f6039d6a0
 #include this to have a playable game that isn't bound to a variable so it renders properly
 WordleGame()
+
+# ╔═╡ 276887d2-e267-43e6-b669-35aa929fd7ca
+# next step is to add some visualization of the guess evaluation on the game board itself on the side maybe with dropdown menus
+@bind gameinput WordleGameInput()
+
+# ╔═╡ ad3136c0-a90d-48b7-b292-18a1bf5f05c8
+#bound values save teh game state as submitted as well as any guesses that are undone
+gameinput
+
+# ╔═╡ f1210099-6791-4fe6-b19a-aa1ccab4ee8f
+gameinput
+
+# ╔═╡ e69e0840-a41c-497a-bf05-2c68c63901d1
+md"""
+### Evaluate Guesses for Submitted Game
+View statistics on possible guesses given feedback recorded from another game.  Togges can adjust the evaluation to only consider valid hard mode guesses and to reverse the sorting in the case of playing Don't Wordle.
+
+Don't Wordle: $(@bind inputrev CheckBox()) Hard Mode: $(@bind inputhardmode CheckBox())
+"""
+
+# ╔═╡ b8c1e4d1-7ea1-40f6-8022-4a5e786c6e19
+gameinputeval = show_game_eval(gameinput; reverserank = inputrev, hardmode = inputhardmode, weights = uniform_ncommon_weights(), undosteps = gameinput.undos)
+
+# ╔═╡ ce42f397-575b-4537-9448-b94a0a021336
+sort(gameinputeval[2], :worst_value)
 
 # ╔═╡ 299dcbc1-6fd5-4171-8947-b3e2d3e8e786
 md"""
@@ -2222,21 +2668,24 @@ version = "17.4.0+0"
 # ╟─58cece7f-7b8f-4e33-b5b7-9205b140fc34
 # ╟─65aa2783-320d-4432-bbf1-d943d99ac8d8
 # ╠═185bdee1-7ac6-48de-abd2-b2cacc20dca3
-# ╠═75cfb8c1-91c9-4564-b260-1f3adeeb0d85
 # ╟─3eaa13a2-9979-43c4-87d2-f28dd4ad48d4
 # ╟─61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
 # ╟─182437d7-a2e9-442b-b2b2-e506e439119a
 # ╟─d72632c1-2873-4f04-92fa-c75ceace9753
 # ╠═213562fd-f12e-43dd-b4be-c33dca669863
 # ╟─b1880e23-24e7-45c3-9c9d-795bdcfe5a1d
-# ╠═4685efa4-4bc1-40d3-94e6-9e010c4c2eef
-# ╠═06ee1945-18fb-4e3b-8b74-e05563c7e181
+# ╠═3f05919a-5d19-4e92-8714-607b1687e834
+# ╠═67c4d0e0-bc72-43bb-b3c5-241962d4addb
+# ╠═28564c92-86a1-43f0-b0c3-3e96dc405584
 # ╠═710c35e6-67e5-4358-b34a-2e81a6b0957b
 # ╠═377e5291-2fb6-4387-a325-a8237286bc61
-# ╠═78512293-cd02-46ca-958d-d8d454b7d8a5
-# ╠═e7c65864-73b0-437b-9f5b-2c785bf952b9
-# ╠═625ea7d0-ce47-44ea-84d3-faaccd8f4b8b
 # ╠═021c7ac4-6e98-497a-acfe-3c6f6039d6a0
+# ╠═e7c65864-73b0-437b-9f5b-2c785bf952b9
+# ╟─f3bf9d9e-ea45-499b-97ba-75326ed11d0f
+# ╠═276887d2-e267-43e6-b669-35aa929fd7ca
+# ╟─e69e0840-a41c-497a-bf05-2c68c63901d1
+# ╠═b8c1e4d1-7ea1-40f6-8022-4a5e786c6e19
+# ╠═ad3136c0-a90d-48b7-b292-18a1bf5f05c8
 # ╟─5d1ff26f-80dd-40b7-83f2-d0e57853d927
 # ╠═8e87362b-0d46-4163-a69e-a686b197f820
 # ╟─e2630092-b753-4bc6-84b2-68574f1bb8ff
@@ -2279,7 +2728,7 @@ version = "17.4.0+0"
 # ╠═da01b6d5-6c7d-49dc-933d-e9bf475d91a2
 # ╟─02274b6f-5a58-41e6-82e1-820c7f888764
 # ╠═24327929-c8f5-45b2-80ad-c873daedf677
-# ╠═ca1cd33a-3d41-4878-8b95-7b7f44353695
+# ╠═f67bd8ab-415a-434b-9ebd-631e502e0237
 # ╟─00cc4b03-347d-4646-b7d8-77f5c59a8cb3
 # ╠═dfba553d-3934-4dc0-8c80-6c4284416828
 # ╠═413a3cfe-3b66-4882-8df4-fe3df51a63a3
@@ -2305,6 +2754,13 @@ version = "17.4.0+0"
 # ╠═a076cae7-b8da-471d-b2ad-3a65bef8e7db
 # ╟─75d6cc5d-2a1d-43fb-bab7-89d3650f6cfd
 # ╠═bb2ac4f1-4a9b-4363-982c-e5fc0b488db6
+# ╠═3d3573e8-e139-49ae-9149-e409817f5af3
+# ╠═5d02032f-7c57-4c3f-95e2-91b943437a3f
+# ╠═bb480846-09d2-42e8-a8a8-9f57a35c8b05
+# ╠═ce42f397-575b-4537-9448-b94a0a021336
+# ╠═f1210099-6791-4fe6-b19a-aa1ccab4ee8f
+# ╟─33e0bbc0-d478-4e1e-bf77-94ba25f6fdc0
+# ╠═40e28b8d-2fad-4da3-90f4-ccdd984da38f
 # ╟─299dcbc1-6fd5-4171-8947-b3e2d3e8e786
 # ╠═369cc5bd-8a0a-41af-98a0-73731cf6decf
 # ╟─a4758d1d-be64-4412-a435-edb936ceec71
