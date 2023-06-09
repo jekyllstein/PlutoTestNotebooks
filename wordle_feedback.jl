@@ -20,11 +20,17 @@ begin
 	TableOfContents()
 end
 
+# ╔═╡ ad1e0925-0589-4f28-9c7d-ef60bb19e475
+using PlutoProfile
+
 # ╔═╡ e7c65864-73b0-437b-9f5b-2c785bf952b9
 using DataFrames
 
 # ╔═╡ c6f8ad99-9200-4ff2-b0d5-e6ac7cb893c2
 using Transducers
+
+# ╔═╡ cf7bb21e-800b-4511-9f54-dcc3d0d14429
+using BenchmarkTools
 
 # ╔═╡ f27c187c-961f-4a34-9357-3d2827d4554b
 using Symbolics
@@ -483,20 +489,20 @@ const basewordlestyle = HTML(
 
 		
 		@keyframes addcolor0 {
-			0% {background-color: rgba(0, 0, 0, 0);}
-			50% {background-color: rgba(0, 0, 0, 0);}
+			0% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			50% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
 			51% {background-color: $(colorlookup[0]); border: 0px solid rgba(0, 0, 0, 0);}
 			100% {background-color: $(colorlookup[0]); border: 0px solid rgba(0, 0, 0, 0);}
 		}
 		@keyframes addcolor1 {
-			0% {background-color: rgba(0, 0, 0, 0);}
-			50% {background-color: rgba(0, 0, 0, 0);}
+			0% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			50% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
 			51% {background-color: $(colorlookup[1]); border: 0px solid rgba(0, 0, 0, 0);}
 			100% {background-color: $(colorlookup[1]); border: 0px solid rgba(0, 0, 0, 0);}
 		}
 		@keyframes addcolor2 {
-			0% {background-color: rgba(0, 0, 0, 0);}
-			50% {background-color: rgba(0, 0, 0, 0);}
+			0% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
+			50% {background-color: rgba(0, 0, 0, 0); border: 2px solid rgb(86, 87, 88);}
 			51% {background-color: $(colorlookup[2]); border: 0px solid rgba(0, 0, 0, 0);}
 			100% {background-color: $(colorlookup[2]); border: 0px solid rgba(0, 0, 0, 0);}
 		}
@@ -952,25 +958,6 @@ Shows corresponding feedback from the matrix and the corresponding words they re
 
 # ╔═╡ de17528b-bb7e-4f7b-b565-16dc44c149e7
 get_possible_indices(guess_index::Integer, feedback::AbstractVector) = get_possible_indices(guess_index, convert_bytes(feedback))
-
-# ╔═╡ ba5850d1-7238-4c16-a6df-de1fc5b9bd63
-#figure out how many groups of words there are given feedback and a probability weighting of answers, something wrong with this calculation, isn't property discounting the counts for 0% probable answers
-function eval_group(possible_feedback::AbstractVector{T}; weights = ones(length(possible_feedback))) where T <: Integer
-	feedback_counts = zeros(Int64, 243) #how to handle case of a count of 3 but you have 99% probability for 1 and 0.5% for the other 2.  this should count less than a case with 3 equally likely answers.  maybe there's another way of handling this to get something other than the expected number of remaining words.  Like the expected chance of guessing correctly in this remaining group if we pick according to the probabilities.  So in the uniform case it would be 1/3 and the inverse of that is 3.  In the other case it would be .99 and the inverse of that is 1.01.  So I guess it is always the inverse of the maximum normalized value
-	feedback_probabilities = zeros(243)
-	s = sum(weights)
-	for (i, f) in enumerate(possible_feedback)
-		feedback_counts[f+1] += weights[i] > 0
-		feedback_probabilities[f+1] += weights[i]/s
-	end
-
-	expected_value = sum(prod, zip(feedback_counts, feedback_probabilities))
-	entropy = sum(p -> p == 0 ? 0. : -p*log2(p), feedback_probabilities)
-
-	#rather than this can calculate expected bits of information using the Shannon entropy over the remaining word probabilities the expected value of the log probability of an answer.  If the probability is divided evenly among all remaining possible words then the information would be maximized because the probabilities would be low thus the log value is close to -Inf.  sum(p(x)*log(p(x)))
-	#after each guess what is the expected value of how many possible words would be remaining
-	(feedback_counts = feedback_counts, feedback_probabilities = feedback_probabilities, expected_value = expected_value, worstvalue=maximum(feedback_counts), entropy = entropy)
-end
 
 # ╔═╡ bff5b402-5eb5-4885-aea0-17b48bde86b3
 lookup_dict(dict, key, default) = haskey(dict, key) ? dict[key] : default
@@ -3306,16 +3293,55 @@ const nyt_valid_words = ["aahed","aalii","aapas","aargh","aarti","abaca","abaci"
 # ╔═╡ 413a3cfe-3b66-4882-8df4-fe3df51a63a3
 const feedback_matrix = make_feedback_matrix(nyt_valid_words)
 
-# ╔═╡ ab51c096-6cf9-43ea-b235-c52dc493ba06
-#returns a list of possible indices in the valid word index
-get_possible_indices(guess_index::Integer, feedback::Integer) = findall(==(feedback), view(feedback_matrix, guess_index, :))
+# ╔═╡ ba5850d1-7238-4c16-a6df-de1fc5b9bd63
+#figure out how many groups of words there are given feedback and a probability weighting of answers, something wrong with this calculation, isn't property discounting the counts for 0% probable answers
+function eval_group(guess_index::Integer, possible_indices::AbstractVector, weights::Vector{Float64}; feedback_counts = zeros(Int64, 243), feedback_probabilities = zeros(243))
+	feedback_counts .= 0 
+	feedback_probabilities .= 0.0
+	inds = Iterators.filter(i -> possible_indices[i], eachindex(possible_indices))
+	s = sum(weights[i] for i in inds)
+	for i in inds
+		f = feedback_matrix[guess_index, i]
+		feedback_counts[f+1] += weights[i] > 0
+		feedback_probabilities[f+1] += weights[i]/s
+	end
+
+	expected_value = sum(prod, zip(feedback_counts, feedback_probabilities))
+	entropy = sum(p -> p == 0 ? 0. : -p*log2(p), feedback_probabilities)
+
+	#add a return value here which is the expected number of hard mode guesses left after this guess, will require also comparing to the hard mode indices I think.
+	
+	#rather than this can calculate expected bits of information using the Shannon entropy over the remaining word probabilities the expected value of the log probability of an answer.  If the probability is divided evenly among all remaining possible words then the information would be maximized because the probabilities would be low thus the log value is close to -Inf.  sum(p(x)*log(p(x)))
+	#after each guess what is the expected value of how many possible words would be remaining
+	(win_probability = last(feedback_probabilities), expected_value = expected_value, worstvalue=maximum(feedback_counts), entropy = entropy)
+end
 
 # ╔═╡ 37ce2df1-e58e-4f63-b665-a367a5e111ad
 [[show_pattern(feedback_matrix[1, n], sizepct = .25), show_pattern(nyt_valid_words[1], nyt_valid_words[n], sizepct = 0.25)] for n in 1:10]
 
+# ╔═╡ 9328ec27-7c9a-4efc-aa66-5856c00adc10
+#generates a matrix with 243 columns where each column is a boolean vector marked true for every word that could be a possible answer receiving that feedback with that guess
+function fill_feedback_sets!(feedback_sets)
+	@simd for answer_index in eachindex(nyt_valid_words) for guess_index in eachindex(nyt_valid_words)
+		f = feedback_matrix[guess_index, answer_index]
+		feedback_sets[answer_index, f+1, guess_index] = true
+	end end
+end
+
+# ╔═╡ 85028296-c559-4777-a1c3-c5be3f29cebe
+const feedback_sets = zeros(Bool, length(nyt_valid_words), 243, length(nyt_valid_words))
+
+# ╔═╡ 9c8cb970-c1d8-436f-84b7-3ffc958079e2
+fill_feedback_sets!(feedback_sets)
+
+# ╔═╡ ab51c096-6cf9-43ea-b235-c52dc493ba06
+#returns a list of possible indices in the valid word index
+get_possible_indices(guess_index::Integer, feedback::Integer) = view(feedback_sets, :, feedback+1, guess_index)
+
 # ╔═╡ e76dc1e4-e769-48bd-8e9d-1f5e597bfc79
 function get_possible_indices(gamesteps)
-	reduce(intersect, get_possible_indices(g, f) for (g, f) in gamesteps; init = eachindex(nyt_valid_words))
+	isempty(gamesteps) && return fill(true, length(nyt_valid_words))
+	reduce((a, b) -> a .* b, get_possible_indices(g, f) for (g, f) in gamesteps)
 end
 
 # ╔═╡ a0972926-249e-467c-bf72-a0cbc3c71b96
@@ -3348,6 +3374,10 @@ word_freq_weights(n) = freq_weights
 # ╔═╡ 79f351b6-3252-4102-840a-5427dc959591
 const freqsortinds = sortperm(freq_weights, rev = true)
 
+# ╔═╡ 1689d4d0-c72e-4022-9737-dfece8411004
+#these are common words that are excluded from the original wordle list.  most of these are plurals and passed tense and eliminating these from the sampling will give a better representative distribution
+const excludewords = setdiff(nyt_valid_words[freqsortinds][1:2000], wordle_original_answers)
+
 # ╔═╡ 35bb8a8d-43b1-4a1c-aa57-9c5b940ffdb3
 const word_freq_rank = Dict(zip(freqsortinds, eachindex(freqsortinds)))
 
@@ -3374,25 +3404,29 @@ get_possible_words([(1, 0), (2, 0)])
 begin
 	const game_evals = Dict{UInt64, NamedTuple}() 
 	
-	function eval_guesses(possible_indices, weights, possible_guess_indices)
+	function eval_guesses(possible_indices::AbstractVector, weights::Vector{Float64}, possible_guess_indices::AbstractVector)
 		k = hash((possible_indices, weights, possible_guess_indices))
 		haskey(game_evals, k) && return game_evals[k]
-		answer_probabilities = weights ./ sum(weights)
-		possibleset = Set(possible_indices)
-		ranked_answers = [(answer = nyt_valid_words[possible_indices[i]], probability = answer_probabilities[i]) for i in sortperm(answer_probabilities, rev=true)]
-		results = [eval_group(view(feedback_matrix, i, possible_indices); weights = weights) for i in possible_guess_indices]
+		inds = Iterators.filter(i -> possible_indices[i], eachindex(possible_indices))
+		weightsum = sum(weights[i] for i in inds)
+		answers = [(answer = nyt_valid_words[i], probability = weights[i]/weightsum) for i in inds]
+		ranked_answers = sort(answers; by = a -> a.probability, rev=true)
+		guessinds = Iterators.filter(i -> possible_guess_indices[i], eachindex(possible_guess_indices))
+		feedback_counts = zeros(Int64, 243)
+		feedback_probabilities = zeros(243)
+		results = [eval_group(i, possible_indices, weights; feedback_counts = feedback_counts, feedback_probabilities = feedback_probabilities) for i in guessinds]
 		expected_values = [a.expected_value for a in results]
-		win_probabilities = [last(a.feedback_probabilities) for a in results]
-		guesses = [(guess = nyt_valid_words[j],  entropy = results[i].entropy,  expected_value = expected_values[i], win_probability = win_probabilities[i], worst_value = results[i].worstvalue, hard_mode_guess = in(j, possibleset)) for (i, j) in enumerate(possible_guess_indices)]
+		win_probabilities = [a.win_probability for a in results]
+		guesses = [(guess = nyt_valid_words[j],  entropy = results[i].entropy,  expected_value = expected_values[i], win_probability = win_probabilities[i], worst_value = results[i].worstvalue, hard_mode_guess = in(j, possible_indices)) for (i, j) in enumerate(guessinds)]
 		out = (ranked_answers = ranked_answers, guesses = guesses)
 		game_evals[k] = out
 	end
 	
 	function eval_guesses(gamesteps; numcommon = lastindex(nyt_valid_words), weight_func = uniform_ncommon_weights, weights = weight_func(numcommon), hardmode = false, undosteps = Vector{Tuple{String, Vector{Int64}}}()) 
 		hard_mode_indices = get_possible_indices(gamesteps)
-		answer_indices = intersect(get_possible_indices(undosteps), hard_mode_indices)
-		possible_guess_indices = hardmode ? hard_mode_indices : eachindex(nyt_valid_words)
-		eval_guesses(answer_indices, view(weights, answer_indices), possible_guess_indices)
+		answer_indices = get_possible_indices(undosteps) .* hard_mode_indices
+		possible_guess_indices = hardmode ? hard_mode_indices : fill(true, length(nyt_valid_words))
+		eval_guesses(answer_indices, weights, possible_guess_indices)
 	end
 end
 
@@ -3420,6 +3454,12 @@ function show_game_eval(wordlegame; sortname = :expected_value, impossiblefilt =
 	"""
 	end
 end
+
+# ╔═╡ a72381d9-a5a6-484e-a8c5-862cfa09073f
+get_possible_indices([])
+
+# ╔═╡ d46e23d9-2055-48dd-a5c3-6198a8d97a6c
+const excludeinds = Set(word_index[w] for w in excludewords)
 
 # ╔═╡ 24968347-3a95-431a-9866-2ad4cd4d06d3
 begin
@@ -3634,12 +3674,10 @@ begin
 						let f = elem.getAttribute("feedback");
 						newf = parseInt(f) + 1;
 						if (newf == 3) {newf = 0;}
-						
-						elem.setAttribute('feedback', newf);
 					}
 					elem.classList.remove("anim");
 					elem.removeAttribute('feedback');
-					setTimeout(() => elem.setAttribute('feedback', newf), 1);
+					setTimeout(() => elem.setAttribute('feedback', newf), 100);
 				}
 			}
 
@@ -4270,7 +4308,7 @@ WordleGame(;answer_index_list=[word_index["scout"]])
 gameinput
 
 # ╔═╡ c069168e-98e4-4632-8446-7fea53d6dcdf
-@bind approxselect Slider(1:length(dominating), default = 5, show_value=true)
+@bind approxselect Slider(1:length(dominating), default = 4, show_value=true)
 
 # ╔═╡ 58f83f36-294b-4c2a-bea3-0b7ce84558ad
 approx_eqn = node_to_symbolic(dominating[approxselect].tree, options) |> simplify
@@ -4290,18 +4328,7 @@ pdf = eval_diff_tree_array(dominating[approxselect].tree, Float64.(1:length(word
 plot(1:length(word_frequencies), pdf[2])
 
 # ╔═╡ bbf6648a-816b-4285-9782-aea4dfda0765
-make_pdf_weights(cutoff=8000) = eval_diff_tree_array(dominating[approxselect].tree, [word_freq_rank[i] |> Float64 for i in eachindex(nyt_valid_words)] |> make_horizontal, options, 1)[2] .* (valid_word_ranks .<= cutoff)
-
-# ╔═╡ 102abb79-142e-4fd9-94ac-3172e7c24b21
-pdf_weights = make_pdf_weights()
-
-# ╔═╡ 213562fd-f12e-43dd-b4be-c33dca669863
-# this cell is not recomputed when the game is played. all the restyling is done with javascript
-@bind wordlegame WordleGame(answer_index_list = [word_index[wsample(nyt_valid_words, pdf_weights)] for _ in 1:5000])
-
-# ╔═╡ 67c4d0e0-bc72-43bb-b3c5-241962d4addb
-#bound variable contains the results of the game as well as the answer index
-wordlegame
+make_pdf_weights(cutoff=8000) = eval_diff_tree_array(dominating[approxselect].tree, [word_freq_rank[i] |> Float64 for i in eachindex(nyt_valid_words)] |> make_horizontal, options, 1)[2] .* (valid_word_ranks .<= cutoff) .* [!in(i, excludeinds) for i in eachindex(nyt_valid_words)]
 
 # ╔═╡ 93e17076-7282-44ea-a121-e3cdac11afb2
 function make_guesseval_selector(gamelabel = "Game")
@@ -4318,14 +4345,25 @@ end
 # ╔═╡ 0de2b764-b5e3-47b6-ac2f-7bbaa4017145
 @bind playselect make_guesseval_selector("Playable Game")
 
-# ╔═╡ 3f05919a-5d19-4e92-8714-607b1687e834
-show_game_eval(wordlegame; playselect...)
-
 # ╔═╡ e66dbd12-1b56-4a51-b344-55cacf537be8
 @bind inputselect make_guesseval_selector("Submitted Game")
 
 # ╔═╡ b2d1dbeb-8db2-409b-b571-6cbb6cc8a3f6
-show_game_eval(gameinput; inputselect...)
+show_game_eval(gameinput; undosteps = gameinput.undos, inputselect...)
+
+# ╔═╡ 311665cd-a36a-400e-b7cd-fbbf0c250830
+const pdf_weights = make_pdf_weights()
+
+# ╔═╡ 213562fd-f12e-43dd-b4be-c33dca669863
+# this cell is not recomputed when the game is played. all the restyling is done with javascript
+@bind wordlegame WordleGame(answer_index_list = [word_index[wsample(nyt_valid_words, pdf_weights)] for _ in 1:5000])
+
+# ╔═╡ 67c4d0e0-bc72-43bb-b3c5-241962d4addb
+#bound variable contains the results of the game as well as the answer index
+wordlegame
+
+# ╔═╡ 3f05919a-5d19-4e92-8714-607b1687e834
+show_game_eval(wordlegame; playselect...)
 
 # ╔═╡ 299dcbc1-6fd5-4171-8947-b3e2d3e8e786
 md"""
@@ -4507,10 +4545,12 @@ show_wordle_game(sample_answer(), [guess_random_word() for _ in 1:6])
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 AbstractPlutoDingetjes = "6e696c72-6542-2067-7265-42206c756150"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 HypertextLiteral = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 PlutoPlotly = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
+PlutoProfile = "ee419aa8-929d-45cd-acf6-76bd043cd7ba"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -4522,10 +4562,12 @@ Transducers = "28d57a85-8fef-5791-bfe6-a80928e7c999"
 
 [compat]
 AbstractPlutoDingetjes = "~1.1.4"
+BenchmarkTools = "~1.3.2"
 DataFrames = "~1.5.0"
 HypertextLiteral = "~0.9.4"
 Latexify = "~0.16.0"
 PlutoPlotly = "~0.3.7"
+PlutoProfile = "~0.4.0"
 PlutoUI = "~0.7.51"
 StaticArrays = "~1.5.25"
 StatsBase = "~0.33.21"
@@ -4541,7 +4583,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.0"
 manifest_format = "2.0"
-project_hash = "9e3b9e8ae21ceeb09f02f18164949f3fa0bb6c4b"
+project_hash = "773ff98a9bda53c8c56866cf314a4d22211f2bbf"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "dcfdf328328f2645531c4ddebf841228aef74130"
@@ -4571,9 +4613,9 @@ uuid = "6e696c72-6542-2067-7265-42206c756150"
 version = "1.1.4"
 
 [[deps.AbstractTrees]]
-git-tree-sha1 = "faa260e4cb5aba097a73fab382dd4b5819d8ec8c"
+git-tree-sha1 = "03e0550477d86222521d254b741d470ba17ea0b5"
 uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
-version = "0.4.4"
+version = "0.3.4"
 
 [[deps.Adapt]]
 deps = ["LinearAlgebra", "Requires"]
@@ -4627,9 +4669,9 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.BangBang]]
 deps = ["Compat", "ConstructionBase", "InitialValues", "LinearAlgebra", "Requires", "Setfield", "Tables"]
-git-tree-sha1 = "54b00d1b93791f8e19e31584bd30f2cb6004614b"
+git-tree-sha1 = "e28912ce94077686443433c2800104b061a827ed"
 uuid = "198e06fe-97b7-11e9-32a5-e1d131e6ad66"
-version = "0.3.38"
+version = "0.3.39"
 
     [deps.BangBang.extensions]
     BangBangChainRulesCoreExt = "ChainRulesCore"
@@ -4652,6 +4694,12 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 git-tree-sha1 = "aebf55e6d7795e02ca500a689d326ac979aaf89e"
 uuid = "9718e550-a3fa-408a-8086-8db961cd8217"
 version = "0.1.1"
+
+[[deps.BenchmarkTools]]
+deps = ["JSON", "Logging", "Printf", "Profile", "Statistics", "UUIDs"]
+git-tree-sha1 = "d9a9701b899b30332bbcb3e1679c41cce81fb0e8"
+uuid = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+version = "1.3.2"
 
 [[deps.Bijections]]
 git-tree-sha1 = "fe4f8c5ee7f76f2198d5c2a06d3961c249cce7bd"
@@ -4696,9 +4744,9 @@ weakdeps = ["JSON", "RecipesBase", "SentinelArrays", "StructTypes"]
 
 [[deps.ChainRules]]
 deps = ["Adapt", "ChainRulesCore", "Compat", "Distributed", "GPUArraysCore", "IrrationalConstants", "LinearAlgebra", "Random", "RealDot", "SparseArrays", "Statistics", "StructArrays"]
-git-tree-sha1 = "8bae903893aeeb429cf732cf1888490b93ecf265"
+git-tree-sha1 = "0266ee4ffeeac8405ab07c49252c144616fe825d"
 uuid = "082447d4-558c-5d27-93f4-14fc19e9eca2"
-version = "1.49.0"
+version = "1.49.1"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
@@ -4850,9 +4898,9 @@ version = "1.1.0"
 
 [[deps.DiffRules]]
 deps = ["IrrationalConstants", "LogExpFunctions", "NaNMath", "Random", "SpecialFunctions"]
-git-tree-sha1 = "a4ad7ef19d2cdc2eff57abbbe68032b1cd0bd8f8"
+git-tree-sha1 = "23163d55f885173722d1e4cf0f6110cdbaf7e272"
 uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
-version = "1.13.0"
+version = "1.15.1"
 
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
@@ -4921,20 +4969,26 @@ git-tree-sha1 = "c1d06d129da9f55715c6c212866f5b1bddc5fa00"
 uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
 version = "0.1.9"
 
+[[deps.FileIO]]
+deps = ["Pkg", "Requires", "UUIDs"]
+git-tree-sha1 = "299dc33549f68299137e51e6d49a13b5b1da9673"
+uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+version = "1.16.1"
+
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[deps.FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
-git-tree-sha1 = "ed569cb9e7e3590d5ba884da7edc50216aac5811"
+git-tree-sha1 = "589d3d3bff204bdd80ecc53293896b4f39175723"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "1.1.0"
+version = "1.1.1"
 
 [[deps.FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "Setfield", "SparseArrays"]
-git-tree-sha1 = "abfd952bdf92f6d7195c45dc46d50043bd0d7dbe"
+git-tree-sha1 = "c6e4a1fbe73b31a3dea94b1da449503b8830c306"
 uuid = "6a86dc24-6348-571c-b903-95158fe2bd41"
-version = "2.21.0"
+version = "2.21.1"
 
     [deps.FiniteDiff.extensions]
     FiniteDiffBandedMatricesExt = "BandedMatrices"
@@ -4951,6 +5005,12 @@ deps = ["Statistics"]
 git-tree-sha1 = "335bfdceacc84c5cdf16aadc768aa5ddfc5383cc"
 uuid = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 version = "0.8.4"
+
+[[deps.FlameGraphs]]
+deps = ["AbstractTrees", "Colors", "FileIO", "FixedPointNumbers", "IndirectArrays", "LeftChildRightSiblingTrees", "Profile"]
+git-tree-sha1 = "d9eee53657f6a13ee51120337f98684c9c702264"
+uuid = "08572546-2f56-4bcf-ba4e-bab62c3a3f89"
+version = "0.2.10"
 
 [[deps.Formatting]]
 deps = ["Printf"]
@@ -4985,15 +5045,15 @@ uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
 
 [[deps.GPUArrays]]
 deps = ["Adapt", "GPUArraysCore", "LLVM", "LinearAlgebra", "Printf", "Random", "Reexport", "Serialization", "Statistics"]
-git-tree-sha1 = "9ade6983c3dbbd492cf5729f865fe030d1541463"
+git-tree-sha1 = "a3351bc577a6b49297248aadc23a4add1097c2ac"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "8.6.6"
+version = "8.7.1"
 
 [[deps.GPUArraysCore]]
 deps = ["Adapt"]
-git-tree-sha1 = "1cd7f0af1aa58abc02ea1d872953a97359cb87fa"
+git-tree-sha1 = "2d6ca471a6c7b536127afccfa7564b5b39227fe0"
 uuid = "46192b85-c4d5-4398-a991-12ede77f4527"
-version = "0.1.4"
+version = "0.1.5"
 
 [[deps.Groebner]]
 deps = ["AbstractAlgebra", "Combinatorics", "Logging", "MultivariatePolynomials", "Primes", "Random", "SnoopPrecompile"]
@@ -5047,6 +5107,11 @@ version = "0.4.10"
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
 version = "0.1.1"
+
+[[deps.IndirectArrays]]
+git-tree-sha1 = "012e604e1c7458645cb8b436f8fba789a51b257f"
+uuid = "9b13fd28-a010-5f03-acff-a1bbcff69959"
+version = "1.0.0"
 
 [[deps.InitialValues]]
 git-tree-sha1 = "4da0f88e9a39111c2fa3add390ab15f3a44f3ca3"
@@ -5102,10 +5167,10 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.4"
 
 [[deps.JSON3]]
-deps = ["Dates", "Mmap", "Parsers", "SnoopPrecompile", "StructTypes", "UUIDs"]
-git-tree-sha1 = "84b10656a41ef564c39d2d477d7236966d2b5683"
+deps = ["Dates", "Mmap", "Parsers", "PrecompileTools", "StructTypes", "UUIDs"]
+git-tree-sha1 = "5b62d93f2582b09e469b3099d839c2d2ebf5066d"
 uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
-version = "1.12.0"
+version = "1.13.1"
 
 [[deps.LLVM]]
 deps = ["CEnum", "LLVMExtra_jll", "Libdl", "Printf", "Unicode"]
@@ -5165,6 +5230,12 @@ version = "0.15.1"
 deps = ["Artifacts", "Pkg"]
 uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 
+[[deps.LeftChildRightSiblingTrees]]
+deps = ["AbstractTrees"]
+git-tree-sha1 = "b864cb409e8e445688bc478ef87c0afe4f6d1f8d"
+uuid = "1d6d02ad-be62-4b6b-8a6d-2f90e265016e"
+version = "0.1.3"
+
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
@@ -5199,9 +5270,9 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[deps.LogExpFunctions]]
 deps = ["DocStringExtensions", "IrrationalConstants", "LinearAlgebra"]
-git-tree-sha1 = "0a1b7c2863e44523180fdb3146534e265a91870b"
+git-tree-sha1 = "c3ce8e7420b3a6e071e0fe4745f5d4300e37b13f"
 uuid = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
-version = "0.3.23"
+version = "0.3.24"
 
     [deps.LogExpFunctions.extensions]
     LogExpFunctionsChainRulesCoreExt = "ChainRulesCore"
@@ -5329,9 +5400,9 @@ version = "0.5.5+0"
 
 [[deps.Optim]]
 deps = ["Compat", "FillArrays", "ForwardDiff", "LineSearches", "LinearAlgebra", "NLSolversBase", "NaNMath", "Parameters", "PositiveFactorizations", "Printf", "SparseArrays", "StatsBase"]
-git-tree-sha1 = "a89b11f0f354f06099e4001c151dffad7ebab015"
+git-tree-sha1 = "e3a6546c1577bfd701771b477b794a52949e7594"
 uuid = "429524aa-4258-5aef-a3af-852621145aeb"
-version = "1.7.5"
+version = "1.7.6"
 
 [[deps.OrderedCollections]]
 git-tree-sha1 = "d321bf2de576bf25ec4d3e4360faca399afca282"
@@ -5373,6 +5444,12 @@ git-tree-sha1 = "90b12392675690592f9d1a29af1689d6c345f97e"
 uuid = "8e989ff0-3d88-8e9f-f020-2b208a939ff0"
 version = "0.3.7"
 
+[[deps.PlutoProfile]]
+deps = ["AbstractTrees", "FlameGraphs", "Profile", "ProfileCanvas"]
+git-tree-sha1 = "154819e606ac4205dd1c7f247d7bda0bf4f215c4"
+uuid = "ee419aa8-929d-45cd-acf6-76bd043cd7ba"
+version = "0.4.0"
+
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
 git-tree-sha1 = "b478a748be27bd2f2c73a7690da219d0844db305"
@@ -5411,9 +5488,9 @@ version = "0.4.12"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "259e206946c293698122f63e2b513a7c99a244e8"
+git-tree-sha1 = "9673d39decc5feece56ef3940e5dafba15ba0f81"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.1.1"
+version = "1.1.2"
 
 [[deps.Preferences]]
 deps = ["TOML"]
@@ -5436,6 +5513,16 @@ version = "0.5.3"
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[[deps.Profile]]
+deps = ["Printf"]
+uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+
+[[deps.ProfileCanvas]]
+deps = ["FlameGraphs", "JSON", "Pkg", "Profile", "REPL"]
+git-tree-sha1 = "41fd9086187b8643feda56b996eef7a3cc7f4699"
+uuid = "efd6af41-a80b-495e-886c-e51b0c7d77a3"
+version = "0.1.0"
 
 [[deps.ProgressBars]]
 deps = ["Printf"]
@@ -5813,9 +5900,9 @@ version = "1.2.13+0"
 
 [[deps.Zygote]]
 deps = ["AbstractFFTs", "ChainRules", "ChainRulesCore", "DiffRules", "Distributed", "FillArrays", "ForwardDiff", "GPUArrays", "GPUArraysCore", "IRTools", "InteractiveUtils", "LinearAlgebra", "LogExpFunctions", "MacroTools", "NaNMath", "PrecompileTools", "Random", "Requires", "SparseArrays", "SpecialFunctions", "Statistics", "ZygoteRules"]
-git-tree-sha1 = "ebac1ae9f048c669317ad48c9bed815790a468d8"
+git-tree-sha1 = "5be3ddb88fc992a7d8ea96c3f10a49a7e98ebc7b"
 uuid = "e88e6eb3-aa80-5325-afca-941959d7151f"
-version = "0.6.61"
+version = "0.6.62"
 
     [deps.Zygote.extensions]
     ZygoteColorsExt = "Colors"
@@ -5872,9 +5959,9 @@ version = "17.4.0+0"
 # ╠═67c4d0e0-bc72-43bb-b3c5-241962d4addb
 # ╟─0de2b764-b5e3-47b6-ac2f-7bbaa4017145
 # ╠═3f05919a-5d19-4e92-8714-607b1687e834
+# ╠═ad1e0925-0589-4f28-9c7d-ef60bb19e475
 # ╠═710c35e6-67e5-4358-b34a-2e81a6b0957b
 # ╠═856ba5fd-546e-4f14-a460-df4294c30ce6
-# ╠═102abb79-142e-4fd9-94ac-3172e7c24b21
 # ╠═377e5291-2fb6-4387-a325-a8237286bc61
 # ╠═021c7ac4-6e98-497a-acfe-3c6f6039d6a0
 # ╠═e7c65864-73b0-437b-9f5b-2c785bf952b9
@@ -5882,7 +5969,7 @@ version = "17.4.0+0"
 # ╠═276887d2-e267-43e6-b669-35aa929fd7ca
 # ╠═ad3136c0-a90d-48b7-b292-18a1bf5f05c8
 # ╟─e66dbd12-1b56-4a51-b344-55cacf537be8
-# ╠═b2d1dbeb-8db2-409b-b571-6cbb6cc8a3f6
+# ╟─b2d1dbeb-8db2-409b-b571-6cbb6cc8a3f6
 # ╠═93e17076-7282-44ea-a121-e3cdac11afb2
 # ╠═28564c92-86a1-43f0-b0c3-3e96dc405584
 # ╟─5d1ff26f-80dd-40b7-83f2-d0e57853d927
@@ -5934,18 +6021,25 @@ version = "17.4.0+0"
 # ╟─aedc8015-09ff-47e8-9b45-bfd75a3679d9
 # ╠═37ce2df1-e58e-4f63-b665-a367a5e111ad
 # ╠═372bde4a-aafa-496a-b446-799086300d40
+# ╠═9328ec27-7c9a-4efc-aa66-5856c00adc10
+# ╠═85028296-c559-4777-a1c3-c5be3f29cebe
+# ╠═9c8cb970-c1d8-436f-84b7-3ffc958079e2
 # ╠═ab51c096-6cf9-43ea-b235-c52dc493ba06
 # ╠═52f07a05-d4bf-46b2-9f29-117fbddb0ec0
 # ╠═ba83887e-e236-45e5-b2c7-926462959ca2
 # ╠═de17528b-bb7e-4f7b-b565-16dc44c149e7
 # ╠═e76dc1e4-e769-48bd-8e9d-1f5e597bfc79
 # ╠═50c3b1e9-07ed-4d76-aca9-06e2e3c59113
+# ╠═cf7bb21e-800b-4511-9f54-dcc3d0d14429
 # ╠═ba5850d1-7238-4c16-a6df-de1fc5b9bd63
 # ╠═73a4d07c-0c94-40d0-a4c0-83ce4386ca6b
+# ╠═a72381d9-a5a6-484e-a8c5-862cfa09073f
 # ╠═bff5b402-5eb5-4885-aea0-17b48bde86b3
 # ╠═24a215a5-0c18-4c63-9767-219cafaf06d6
 # ╟─ad2d5040-59bc-4339-ba43-157b96d22b30
 # ╠═b7851d60-eef4-48f1-93f3-26bd93d52b86
+# ╠═1689d4d0-c72e-4022-9737-dfece8411004
+# ╠═d46e23d9-2055-48dd-a5c3-6198a8d97a6c
 # ╠═24968347-3a95-431a-9866-2ad4cd4d06d3
 # ╠═c069168e-98e4-4632-8446-7fea53d6dcdf
 # ╠═58f83f36-294b-4c2a-bea3-0b7ce84558ad
@@ -5954,6 +6048,7 @@ version = "17.4.0+0"
 # ╠═099002d4-8aa3-4ed2-923f-1a6872876570
 # ╠═4ee84222-6be9-4468-b805-df56edf29c3f
 # ╠═bbf6648a-816b-4285-9782-aea4dfda0765
+# ╠═311665cd-a36a-400e-b7cd-fbbf0c250830
 # ╠═f27c187c-961f-4a34-9357-3d2827d4554b
 # ╠═94d2b036-4e3f-45cd-af1f-e8271c13288c
 # ╠═16dc93e5-8d4c-411b-88e0-f78c524888da
