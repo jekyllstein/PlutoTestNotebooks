@@ -3293,11 +3293,8 @@ const nyt_valid_words = ["aahed","aalii","aapas","aargh","aarti","abaca","abaci"
 # ╔═╡ 413a3cfe-3b66-4882-8df4-fe3df51a63a3
 const feedback_matrix = make_feedback_matrix(nyt_valid_words)
 
-# ╔═╡ 032054e0-57a1-44ba-a166-8be7814c405c
-sizeof(feedback_matrix) / 1e9
-
 # ╔═╡ ba5850d1-7238-4c16-a6df-de1fc5b9bd63
-#figure out how many groups of words there are given feedback and a probability weighting of answers, something wrong with this calculation, isn't property discounting the counts for 0% probable answers
+#figure out how many groups of words there are given feedback and a probability weighting of answers
 function eval_group(guess_index::Integer, possible_indices::AbstractVector, weights::Vector{Float64}; feedback_counts = zeros(Int64, 243), feedback_probabilities = zeros(243))
 	feedback_counts .= 0 
 	feedback_probabilities .= 0.0
@@ -3333,9 +3330,6 @@ end
 
 # ╔═╡ 85028296-c559-4777-a1c3-c5be3f29cebe
 const feedback_sets = BitArray(undef, length(nyt_valid_words), 243, length(nyt_valid_words))
-
-# ╔═╡ 435d2e35-2dbb-4ed1-8c1d-d089b3a3936b
-sizeof(feedback_sets) / 1e9
 
 # ╔═╡ 9c8cb970-c1d8-436f-84b7-3ffc958079e2
 fill_feedback_sets!(feedback_sets)
@@ -3423,7 +3417,7 @@ begin
 		results = [eval_group(i, possible_indices, weights; feedback_counts = feedback_counts, feedback_probabilities = feedback_probabilities) for i in guessinds]
 		expected_values = [a.expected_value for a in results]
 		win_probabilities = [a.win_probability for a in results]
-		guesses = [(guess = nyt_valid_words[j],  entropy = results[i].entropy,  expected_value = expected_values[i], win_probability = win_probabilities[i], worst_value = results[i].worstvalue, hard_mode_guess = in(j, possible_indices)) for (i, j) in enumerate(guessinds)]
+		guesses = [(guess = nyt_valid_words[j],  entropy = results[i].entropy,  expected_value = expected_values[i], win_probability = win_probabilities[i], worst_value = results[i].worstvalue, hard_mode_guess = possible_indices[j]) for (i, j) in enumerate(guessinds)]
 		out = (ranked_answers = ranked_answers, guesses = guesses)
 		game_evals[k] = out
 	end
@@ -4587,7 +4581,7 @@ Transducers = "~0.4.76"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.0"
+julia_version = "1.9.1"
 manifest_format = "2.0"
 project_hash = "773ff98a9bda53c8c56866cf314a4d22211f2bbf"
 
@@ -5929,7 +5923,7 @@ version = "0.2.3"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
-version = "5.7.0+0"
+version = "5.8.0+0"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -5975,7 +5969,7 @@ version = "17.4.0+0"
 # ╠═276887d2-e267-43e6-b669-35aa929fd7ca
 # ╠═ad3136c0-a90d-48b7-b292-18a1bf5f05c8
 # ╟─e66dbd12-1b56-4a51-b344-55cacf537be8
-# ╟─b2d1dbeb-8db2-409b-b571-6cbb6cc8a3f6
+# ╠═b2d1dbeb-8db2-409b-b571-6cbb6cc8a3f6
 # ╠═93e17076-7282-44ea-a121-e3cdac11afb2
 # ╠═28564c92-86a1-43f0-b0c3-3e96dc405584
 # ╟─5d1ff26f-80dd-40b7-83f2-d0e57853d927
@@ -6029,8 +6023,6 @@ version = "17.4.0+0"
 # ╠═372bde4a-aafa-496a-b446-799086300d40
 # ╠═9328ec27-7c9a-4efc-aa66-5856c00adc10
 # ╠═85028296-c559-4777-a1c3-c5be3f29cebe
-# ╠═032054e0-57a1-44ba-a166-8be7814c405c
-# ╠═435d2e35-2dbb-4ed1-8c1d-d089b3a3936b
 # ╠═9c8cb970-c1d8-436f-84b7-3ffc958079e2
 # ╠═ab51c096-6cf9-43ea-b235-c52dc493ba06
 # ╠═52f07a05-d4bf-46b2-9f29-117fbddb0ec0
