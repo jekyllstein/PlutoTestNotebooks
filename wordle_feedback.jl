@@ -3293,6 +3293,9 @@ const nyt_valid_words = ["aahed","aalii","aapas","aargh","aarti","abaca","abaci"
 # ╔═╡ 413a3cfe-3b66-4882-8df4-fe3df51a63a3
 const feedback_matrix = make_feedback_matrix(nyt_valid_words)
 
+# ╔═╡ 032054e0-57a1-44ba-a166-8be7814c405c
+sizeof(feedback_matrix) / 1e9
+
 # ╔═╡ ba5850d1-7238-4c16-a6df-de1fc5b9bd63
 #figure out how many groups of words there are given feedback and a probability weighting of answers, something wrong with this calculation, isn't property discounting the counts for 0% probable answers
 function eval_group(guess_index::Integer, possible_indices::AbstractVector, weights::Vector{Float64}; feedback_counts = zeros(Int64, 243), feedback_probabilities = zeros(243))
@@ -3322,14 +3325,17 @@ end
 # ╔═╡ 9328ec27-7c9a-4efc-aa66-5856c00adc10
 #generates a matrix with 243 columns where each column is a boolean vector marked true for every word that could be a possible answer receiving that feedback with that guess
 function fill_feedback_sets!(feedback_sets)
-	@simd for answer_index in eachindex(nyt_valid_words) for guess_index in eachindex(nyt_valid_words)
+	for answer_index in eachindex(nyt_valid_words) for guess_index in eachindex(nyt_valid_words)
 		f = feedback_matrix[guess_index, answer_index]
 		feedback_sets[answer_index, f+1, guess_index] = true
 	end end
 end
 
 # ╔═╡ 85028296-c559-4777-a1c3-c5be3f29cebe
-const feedback_sets = zeros(Bool, length(nyt_valid_words), 243, length(nyt_valid_words))
+const feedback_sets = BitArray(undef, length(nyt_valid_words), 243, length(nyt_valid_words))
+
+# ╔═╡ 435d2e35-2dbb-4ed1-8c1d-d089b3a3936b
+sizeof(feedback_sets) / 1e9
 
 # ╔═╡ 9c8cb970-c1d8-436f-84b7-3ffc958079e2
 fill_feedback_sets!(feedback_sets)
@@ -6023,6 +6029,8 @@ version = "17.4.0+0"
 # ╠═372bde4a-aafa-496a-b446-799086300d40
 # ╠═9328ec27-7c9a-4efc-aa66-5856c00adc10
 # ╠═85028296-c559-4777-a1c3-c5be3f29cebe
+# ╠═032054e0-57a1-44ba-a166-8be7814c405c
+# ╠═435d2e35-2dbb-4ed1-8c1d-d089b3a3936b
 # ╠═9c8cb970-c1d8-436f-84b7-3ffc958079e2
 # ╠═ab51c096-6cf9-43ea-b235-c52dc493ba06
 # ╠═52f07a05-d4bf-46b2-9f29-117fbddb0ec0
