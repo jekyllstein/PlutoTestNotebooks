@@ -69,9 +69,6 @@ md"""
 ## Playable Game
 """
 
-# ╔═╡ e7c65864-73b0-437b-9f5b-2c785bf952b9
-
-
 # ╔═╡ f3bf9d9e-ea45-499b-97ba-75326ed11d0f
 md"""
 ## Wordle Game Input
@@ -972,7 +969,7 @@ end
 # ╔═╡ 9328ec27-7c9a-4efc-aa66-5856c00adc10
 #generates a matrix with 243 columns where each column is a boolean vector marked true for every word that could be a possible answer receiving that feedback with that guess
 function make_feedback_sets(feedback_matrix)
-	fname = "feedbacksets $(hash(feedback_matrix))"
+	fname = "feedbacksets $(hash(feedback_matrix)).bin"
 	l = size(feedback_matrix, 1)
 	feedback_sets = init_feedback_sets(feedback_matrix)
 	if isfile(fname)
@@ -1012,9 +1009,6 @@ const absurdlelookup = Dict{Tuple{Int64, BitVector}, Vector{NamedTuple{(:word, :
 # ╔═╡ 251558ac-501e-4b90-91ca-54657de067f9
 const lookupqueue = Channel(1)
 
-# ╔═╡ 4dd9308c-9306-453a-a3e1-9887f678f023
-typeof(absurdlelookup)
-
 # ╔═╡ 268ab0b8-f1f5-4801-b3bb-d31df4016e2a
 const resultqueue = Channel(1)
 
@@ -1030,15 +1024,17 @@ end
 function monitor_lookup()
 	while true
 		t = take!(lookupqueue)
-		absurdlelookup = t
+		for k in keys(t)
+			absurdlelookup[k] = t[k]
+		end
 	end
 end
 
 # ╔═╡ b18076a7-3847-4d0a-b488-dcc03116ef2e
-@spawn monitor_lookup()
+@async monitor_lookup()
 
 # ╔═╡ fe1eef75-8798-430a-9744-b5625d7bf1e1
-@spawn monitor_absurdle_results()
+@async monitor_absurdle_results()
 
 # ╔═╡ 7e5668c4-db93-43d9-ab69-b40e4bd8e9ef
 const leaststeps = Channel{Int64}(1)
@@ -1047,15 +1043,23 @@ const leaststeps = Channel{Int64}(1)
 put!(leaststeps, typemax(Int64))
 
 # ╔═╡ 7b09bbc8-03e3-49bf-8b53-98c87c66e0d9
-const absurdle_solutions = Vector{NamedTuple{(:branchnum, :result), Tuple{Tuple{Int64, Int64}, Vector{Any}}}}()
+const absurdle_solutions = Vector{NamedTuple{(:branchnum, :result), Tuple{Tuple{Int64, Int64}, Vector{NamedTuple{(:numsteps, :finalguess, :gamesteps), Tuple{Int64, NamedTuple{(:word, :feedback, :groupsize, :possible_indices), Tuple{String, Int64, Int64, BitVector}}, Vector{Tuple{String, Int64}}}}}}}}()
+
+# ╔═╡ 12970260-3ce2-40eb-9e7b-cce9acb769bc
+const save_lookup_channel = Channel(1)
+
+# ╔═╡ 9d1a866a-7e66-464f-ab7c-fc75e5557625
+const save_solutions_channel = Channel(1)
 
 # ╔═╡ d816f466-a0ce-4685-bea5-77321412e206
-function save_absurdle_lookup(; lookup = absurdlelookup, fname="absurdlelookup.bin")
-	Arrow.write("absurdlelookup.bin", DataFrame((key = k, value = lookup[k]) for k in keys(lookup)))
+function save_absurdle_lookup(;lookup=absurdlelookup, fname="absurdlelookup.bin")
+	Arrow.write(fname, DataFrame((key = k, value = lookup[k]) for k in keys(lookup)))
 end
 
 # ╔═╡ 48c9bde2-4d00-4c3d-8e8e-882f7aee27ec
-save_absurdle_solutions(;solutions=absurdle_solutions) = Arrow.write("absurdle_solutions$(Date(now())).bin", DataFrame(unique(solutions)))
+function save_absurdle_solutions(solutions)
+	Arrow.write("absurdle_solutions$(Date(now())).bin", DataFrame(unique(solutions)))
+end
 
 # ╔═╡ 2040ef50-6903-48e2-99fb-69a8f2e6a86f
 function load_absurdle_lookup(;fname="absurdlelookup.bin")
@@ -1078,9 +1082,12 @@ end
 #begin with an empty absurdlelookup but populate it once it is done loading
 @spawn queue_lookup()
 
-# ╔═╡ c779c255-cf82-4b55-ad5b-e3d9d654c7aa
+# ╔═╡ 5672b0f7-00fd-4a5e-b3d6-5a9ee69e725a
+!isempty(absurdle_solutions) && last(absurdle_solutions)[2]
+
+# ╔═╡ 52232314-4620-45f5-9610-54275df986cd
 md"""
-#### Absurdle shortest termination results
+### Wordle Guess Evaluation Functions
 """
 
 # ╔═╡ bff5b402-5eb5-4885-aea0-17b48bde86b3
@@ -3593,7 +3600,7 @@ function solve_absurdle(gamesteps::Vector{Tuple{String, Int64}}; branchnum = 2, 
 
 	length(gamesteps) == beststeps && return [(numsteps = typemax(Int64), finalguess = "NA", gamesteps = gamesteps)]
 	
-	output = (isempty(gamesteps) ? guesses[1:initbranch] : guesses[1:branchnum]) |> Map(guess -> solve_absurdle(vcat(gamesteps, (guess.word, guess.feedback)); branchnum=branchnum)) |> foldxt(vcat, init = Vector{Tuple{Int64, String, Vector{Any}}}())
+	output = (isempty(gamesteps) ? guesses[1:initbranch] : guesses[1:branchnum]) |> Map(guess -> solve_absurdle(vcat(gamesteps, (guess.word, guess.feedback)); branchnum=branchnum)) |> foldxt(vcat, init = Vector{NamedTuple{(:numsteps, :finalguess, :gamesteps), Tuple{Int64, NamedTuple{(:word, :feedback, :groupsize, :possible_indices), Tuple{String, Int64, Int64, BitVector}}, Vector{Tuple{String, Int64}}}}}())
 	sort(output, by= a -> a.numsteps) |> unique
 end
 
@@ -3699,33 +3706,6 @@ const excludeinds = Set(word_index[w] for w in excludewords)
 begin
 	wordranks = [word_freq_rank[word_index[w]] for w in wordle_original_answers] |> sort
 	wordcdf = eachindex(wordle_original_answers) ./ length(wordle_original_answers)
-end
-
-# ╔═╡ 973a3fba-cfaf-47d9-bc5e-38b8230f2fa2
-# ╠═╡ show_logs = false
-begin
-	x_addon = last(wordranks)+100:100:15000
-	x = vcat(wordranks, x_addon) |> make_horizontal |> collect
-	y = vcat(wordcdf, ones(length(x_addon))) |> make_horizontal |> collect
-	options = Options(binary_operators = (+, *), unary_operators = (erf,), complexity_of_operators = [(+) => 1, (-) => 1, (/) => 1, (*) => 1, (^) => 2, exp => 2, log => 2, sqrt => 2, tanh => 3, sq => 2, erf => 3, atan => 3], maxsize = 7, enable_autodiff=true, turbo=true, save_to_file=false)
-	hof = EquationSearch(x, y; options = options, niterations = 10)
-end
-
-# ╔═╡ a8a173f8-7001-4da4-9b0f-19539f3f00a8
-dominating = calculate_pareto_frontier(hof)
-
-# ╔═╡ 0a364306-a131-4e26-90d1-f06ae2cd7c4e
-begin
-	println("Complexity\tMSE\tScore\tEquation")
-
-	for member in dominating
-	    complexity = compute_complexity(member, options)
-	    loss = member.loss
-		score = member.score
-	    string = string_tree(member.tree, options)
-	
-	    println("$(complexity)\t$(loss)\t$(score)\t$(string)")
-	end
 end
 
 # ╔═╡ 00e5cce8-b8a9-46a9-bebb-7da561cddbda
@@ -4474,6 +4454,15 @@ begin
 					setTimeout(() => showMessage("game-lost"), 1900);
 					setTimeout(() => {game.classList.add("gamelost")}, 1500);
 					span.value[3] = 'loss';
+				} else {
+					feedback.map((f, index) => { 
+						setTimeout(()=>{elems[index].classList.add('feedback'+f)}, index*100)});
+					if (row == $(nrows-1)) {
+						console.log('game lost');
+						showMessage("game-lost");
+						setTimeout(() => {game.classList.add("gamelost")}, 1500);
+						span.value[3] = 'loss';
+					}
 				}
 			}
 			
@@ -4562,72 +4551,17 @@ if runabsurdle > 0
 	isready(leaststeps) && take!(leaststeps)
 	put!(leaststeps, typemax(Int64))
 	push!(absurdle_solutions, (branchnum = (branchnum, initbranch), result = solve_absurdle(Vector{Tuple{String, Int64}}(); branchnum = branchnum, initbranch = initbranch)))
-	@spawn save_absurdle_lookup()
-	@spawn save_absurdle_solutions()
+	md"""
+	#### Latest Absurdle Solutions
+	"""
+	#trigger saving new data
+	# @spawn save_absurdle_solutions(solutions)
+	# @spawn save_absurdle_lookup(lookup=$absurdlelookup)
+else
+	md"""
+	#### Latest Absurdle Solutions
+	"""
 end
-
-# ╔═╡ fd4b4998-b485-4e25-aea7-7a0604a1aff0
-begin
-	runabsurdle
-	!isempty(absurdle_solutions) && last(absurdle_solutions)[2]
-end
-
-# ╔═╡ c069168e-98e4-4632-8446-7fea53d6dcdf
-@bind approxselect Slider(1:length(dominating), default = 6, show_value=true)
-
-# ╔═╡ 58f83f36-294b-4c2a-bea3-0b7ce84558ad
-approx_eqn = node_to_symbolic(dominating[approxselect].tree, options) |> simplify
-
-# ╔═╡ 21359bc7-1188-47d4-8323-0f6f559d2f3d
-begin
-	bestapprox = eval_tree_array(dominating[approxselect].tree, Float64.(make_horizontal(wordranks)), options)[1][:]
-	plot(wordranks, [wordcdf bestapprox], Layout(xaxis_title = "Word Frequency Rank", yaxis_title = "Fraction of Words with Lower Rank"))
-end
-
-# ╔═╡ 099002d4-8aa3-4ed2-923f-1a6872876570
-pdf = eval_diff_tree_array(dominating[approxselect].tree, Float64.(1:length(word_frequencies
-)) |> make_horizontal, options, 1)
-
-# ╔═╡ 355df00b-8cd6-4894-a0c5-505ebd68c005
-plot(1:length(word_frequencies), pdf[2], Layout(title = "Answer Probabilities by Occurance Rank"))
-
-# ╔═╡ bbf6648a-816b-4285-9782-aea4dfda0765
-make_pdf_weights(cutoff=8000) = eval_diff_tree_array(dominating[approxselect].tree, [word_freq_rank[i] |> Float64 for i in eachindex(nyt_valid_words)] |> make_horizontal, options, 1)[2] .* (valid_word_ranks .<= cutoff) .* [!in(i, excludeinds) for i in eachindex(nyt_valid_words)]
-
-# ╔═╡ 93e17076-7282-44ea-a121-e3cdac11afb2
-function make_guesseval_selector(gamelabel = "Game")
-	PlutoUI.combine() do Child
-		md"""
-		### Evaluate Guesses for $gamelabel
-		View statistics on possible guesses given feedback recorded from another game.  Togges can adjust the evaluation to only consider valid hard mode guesses and to reverse the sorting in the case of playing Don't Wordle.
-		
-		Hard Mode: $(Child("hardmode", CheckBox())) Sort By: $(Child("sortname", Select([:entropy => "Entropy", :expected_value => "Expected Value", :win_probability => "Win Probability", :worst_value => "Worst Value", :remaining_hardmode => "Expected Hard Mode Guesses Left"]))) Reverse Sort: $(Child("reversesort", CheckBox(default=true))) Answer Weights: $(Child("weight_func", Select([make_pdf_weights => "Wordle Original PDF", uniform_ncommon_weights => "Uniform", word_freq_weights => "Occurence Frequency"]))) Num Common: $(Child("numcommon", NumberField(2000:100:12000, default = 8000))) Min Answer Probability: $(Child("minimum_win_probability", NumberField(0.0:0.001:1.0, default = 0.0)))
-		"""
-	end
-end
-
-# ╔═╡ 0de2b764-b5e3-47b6-ac2f-7bbaa4017145
-@bind playselect make_guesseval_selector("Playable Game")
-
-# ╔═╡ e66dbd12-1b56-4a51-b344-55cacf537be8
-@bind inputselect make_guesseval_selector("Submitted Game")
-
-# ╔═╡ b2d1dbeb-8db2-409b-b571-6cbb6cc8a3f6
-show_game_eval(gameinput; undosteps = gameinput.undos, inputselect...)
-
-# ╔═╡ 311665cd-a36a-400e-b7cd-fbbf0c250830
-const pdf_weights = make_pdf_weights()
-
-# ╔═╡ 213562fd-f12e-43dd-b4be-c33dca669863
-# this cell is not recomputed when the game is played. all the restyling is done with javascript
-@bind wordlegame WordleGame(answer_index_list = [word_index[wsample(nyt_valid_words, pdf_weights)] for _ in 1:5000])
-
-# ╔═╡ 67c4d0e0-bc72-43bb-b3c5-241962d4addb
-#bound variable contains the results of the game as well as the answer index
-wordlegame
-
-# ╔═╡ 3f05919a-5d19-4e92-8714-607b1687e834
-show_game_eval(wordlegame; playselect...)
 
 # ╔═╡ 299dcbc1-6fd5-4171-8947-b3e2d3e8e786
 md"""
@@ -6301,21 +6235,13 @@ version = "17.4.0+0"
 # ╟─61aa10a8-ed3f-43e4-8b5d-a124fb006f8d
 # ╟─182437d7-a2e9-442b-b2b2-e506e439119a
 # ╟─d72632c1-2873-4f04-92fa-c75ceace9753
-# ╠═213562fd-f12e-43dd-b4be-c33dca669863
-# ╠═67c4d0e0-bc72-43bb-b3c5-241962d4addb
-# ╟─0de2b764-b5e3-47b6-ac2f-7bbaa4017145
-# ╠═3f05919a-5d19-4e92-8714-607b1687e834
 # ╠═710c35e6-67e5-4358-b34a-2e81a6b0957b
 # ╠═856ba5fd-546e-4f14-a460-df4294c30ce6
 # ╠═377e5291-2fb6-4387-a325-a8237286bc61
 # ╠═021c7ac4-6e98-497a-acfe-3c6f6039d6a0
-# ╠═e7c65864-73b0-437b-9f5b-2c785bf952b9
 # ╟─f3bf9d9e-ea45-499b-97ba-75326ed11d0f
 # ╠═276887d2-e267-43e6-b669-35aa929fd7ca
 # ╠═ad3136c0-a90d-48b7-b292-18a1bf5f05c8
-# ╟─e66dbd12-1b56-4a51-b344-55cacf537be8
-# ╠═b2d1dbeb-8db2-409b-b571-6cbb6cc8a3f6
-# ╠═93e17076-7282-44ea-a121-e3cdac11afb2
 # ╠═28564c92-86a1-43f0-b0c3-3e96dc405584
 # ╟─5d1ff26f-80dd-40b7-83f2-d0e57853d927
 # ╠═8e87362b-0d46-4163-a69e-a686b197f820
@@ -6385,7 +6311,6 @@ version = "17.4.0+0"
 # ╠═251558ac-501e-4b90-91ca-54657de067f9
 # ╠═e06a2368-f5d9-4e7e-ba89-a83122a8c8d4
 # ╠═75a92386-c872-450a-ac08-eee21d1827f2
-# ╠═4dd9308c-9306-453a-a3e1-9887f678f023
 # ╠═268ab0b8-f1f5-4801-b3bb-d31df4016e2a
 # ╠═7858ad9a-2188-4859-a649-93bc35730036
 # ╠═8c4d0989-15c4-417b-9126-27634fc63ac2
@@ -6399,35 +6324,27 @@ version = "17.4.0+0"
 # ╠═ae7d69be-d104-42d2-9a29-889aee0e9cf6
 # ╠═64e019d7-40f8-4925-ae8b-b9440192721b
 # ╠═7b09bbc8-03e3-49bf-8b53-98c87c66e0d9
-# ╟─d816f466-a0ce-4685-bea5-77321412e206
+# ╠═12970260-3ce2-40eb-9e7b-cce9acb769bc
+# ╠═9d1a866a-7e66-464f-ab7c-fc75e5557625
+# ╠═d816f466-a0ce-4685-bea5-77321412e206
 # ╠═48c9bde2-4d00-4c3d-8e8e-882f7aee27ec
 # ╠═2040ef50-6903-48e2-99fb-69a8f2e6a86f
 # ╟─916c36c8-6f0f-48da-89b6-b6d46f35c657
 # ╟─f3a11641-4fa4-4bc8-be9e-abf0c23d6c8c
 # ╟─54fc1c84-57ca-4543-86a6-b0eebcfea5fc
-# ╟─c779c255-cf82-4b55-ad5b-e3d9d654c7aa
-# ╟─fd4b4998-b485-4e25-aea7-7a0604a1aff0
+# ╟─5672b0f7-00fd-4a5e-b3d6-5a9ee69e725a
+# ╟─52232314-4620-45f5-9610-54275df986cd
 # ╠═ba5850d1-7238-4c16-a6df-de1fc5b9bd63
 # ╠═73a4d07c-0c94-40d0-a4c0-83ce4386ca6b
 # ╠═bff5b402-5eb5-4885-aea0-17b48bde86b3
 # ╠═24a215a5-0c18-4c63-9767-219cafaf06d6
 # ╠═d46e23d9-2055-48dd-a5c3-6198a8d97a6c
 # ╠═24968347-3a95-431a-9866-2ad4cd4d06d3
-# ╟─c069168e-98e4-4632-8446-7fea53d6dcdf
-# ╟─58f83f36-294b-4c2a-bea3-0b7ce84558ad
 # ╟─016dc203-f010-4be5-81d2-8bc8249ee6d0
-# ╟─21359bc7-1188-47d4-8323-0f6f559d2f3d
-# ╠═355df00b-8cd6-4894-a0c5-505ebd68c005
-# ╠═099002d4-8aa3-4ed2-923f-1a6872876570
 # ╠═4ee84222-6be9-4468-b805-df56edf29c3f
-# ╠═bbf6648a-816b-4285-9782-aea4dfda0765
-# ╠═311665cd-a36a-400e-b7cd-fbbf0c250830
 # ╠═61e9f989-323a-4950-874a-d31b98b16b8f
 # ╠═28cc083c-cc63-411a-a0c1-e615330e8937
 # ╠═864e695a-45f5-4236-b613-5299e9c2715e
-# ╠═973a3fba-cfaf-47d9-bc5e-38b8230f2fa2
-# ╠═a8a173f8-7001-4da4-9b0f-19539f3f00a8
-# ╠═0a364306-a131-4e26-90d1-f06ae2cd7c4e
 # ╠═c6ae8aad-5670-4374-ba31-1011f934e538
 # ╠═b7851d60-eef4-48f1-93f3-26bd93d52b86
 # ╠═1689d4d0-c72e-4022-9737-dfece8411004
