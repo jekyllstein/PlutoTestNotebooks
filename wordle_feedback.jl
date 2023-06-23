@@ -3743,6 +3743,10 @@ function show_game_eval(wordlegame; sortname = :expected_value, minimum_win_prob
 	Remaining Answers: $numanswers
 	Likely Answers: $numlikelyanswers
 	"""
+	elseif numanswers == 0
+		md"""
+		No possible answers remain.  The feedback might be incorrect
+		"""
 	else
 		tbl = filter(a -> a.probability == 1, wordlegame_eval.ranked_answers)
 	md"""
@@ -4656,12 +4660,13 @@ begin
 
 			function applyFeedback(feedback, elems) {
 				console.log('Feedback is ' + feedback);
-				elems.map((e, index) => {
+				function addLabels(e, index) {
 					e.classList.remove('anim');
 					let letter = e.getAttribute("label");
 					span.querySelector('.Key-module_key__kchQI[data-key="'+letter+'"]').classList.add('feedback'+feedback[index]);
-					setTimeout(() => e.classList.add('feedback'+feedback[index]), 200*index);
-				});
+					e.classList.add('feedback'+feedback[index]);
+				}
+				elems.map((e, index) => {setTimeout(() => {addLabels(e, index);}, index*200);});
 				if (feedback.every(f => {return f == 2})) {
 					console.log('game won');
 					setTimeout(() => showMessage("game-won"), 1900);
