@@ -3750,6 +3750,10 @@ function show_game_eval(wordlegame; sortname = :expected_value, minimum_win_prob
 	Remaining Answers: $numanswers
 	Likely Answers: $numlikelyanswers
 	"""
+	elseif numanswers == 0
+		md"""
+		No possible answers remain.  The feedback might be incorrect
+		"""
 	else
 		tbl = filter(a -> a.probability == 1, wordlegame_eval.ranked_answers)
 	md"""
