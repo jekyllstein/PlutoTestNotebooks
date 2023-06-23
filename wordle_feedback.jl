@@ -4663,12 +4663,13 @@ begin
 
 			function applyFeedback(feedback, elems) {
 				console.log('Feedback is ' + feedback);
-				elems.map((e, index) => {
+				function addLabels(e, index) {
 					e.classList.remove('anim');
 					let letter = e.getAttribute("label");
 					span.querySelector('.Key-module_key__kchQI[data-key="'+letter+'"]').classList.add('feedback'+feedback[index]);
-					setTimeout(() => e.classList.add('feedback'+feedback[index]), 200*index);
-				});
+					e.classList.add('feedback'+feedback[index]);
+				}
+				elems.map((e, index) => {setTimeout(() => {addLabels(e, index);}, index*200);});
 				if (feedback.every(f => {return f == 2})) {
 					console.log('game won');
 					setTimeout(() => showMessage("game-won"), 1900);
