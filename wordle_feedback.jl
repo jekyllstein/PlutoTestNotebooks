@@ -1021,30 +1021,26 @@ const lookuptimes = Dict{BitVector, DateTime}()
 # ╔═╡ 268ab0b8-f1f5-4801-b3bb-d31df4016e2a
 const resultqueue = Channel{Tuple{BitVector, Vector{NamedTuple{(:word, :feedback, :groupsize), Tuple{String, Int64, Int64}}}}}(Inf)
 
-# ╔═╡ 9ff464cb-b8eb-4bf7-8d0b-a840b7ce1d07
+# ╔═╡ 805e96ec-c6db-4772-b1c0-5a13c96091d8
 const lookup_time_channel = Channel{Tuple{BitVector, DateTime}}(Inf)
-
-# ╔═╡ e33076f7-ded5-4f37-8906-4452cc3350af
-function monitor_lookup_times()
-	while true
-		v = take!(lookup_time_channel)
-		lookuptimes[v[1]] = v[2]
-		# @info "Accessing result on thread $(threadid()) at time $(now())"
-		if length(lookuptimes) > 2e6
-			@info "2 million entries in lookup dictionary.  Only keeping the 1 million most recently accessed"
-			removekeys = [a[1] for a in sort(lookuptimes, by = a -> a[2])]
-			for k in removekeys
-				delete!(absurdlelookup, k)
-				delete!(lookuptimes, k)
-			end
-		end
-	end
-end
 
 # ╔═╡ 369b0e11-9412-4066-9373-7d2ba5d398c3
 function handle_results()
 	t = take!(resultqueue)
 	absurdlelookup[t[1]] = t[2]
+	while isready(lookup_time_channel)
+		v = take!(lookup_time_channel)
+		lookuptimes[v[1]] = v[2]
+	end
+	if length(lookuptimes) > 2e6
+		@info "2 million entries in lookup dictionary.  Only keeping the 1 million most recently accessed"
+		removekeys = [a[1] for a in sort(lookuptimes, by = a -> a[2])]
+		for k in removekeys
+			delete!(absurdlelookup, k)
+			delete!(lookuptimes, k)
+		end
+		GC.gc()
+	end
 	# @info "Adding result to lookup dictionary"
 	# @info "Adding to lookup table result for $(t[2][1][(:word, :feedback)])"
 	# @info "Lookup results channel is filled with $(resultqueue.n_avail_items) items"
@@ -1164,9 +1160,6 @@ end
 
 # ╔═╡ ee97c3c8-44ef-46f7-9b35-18a05fcd484a
 @async monitor_progress()
-
-# ╔═╡ bd1176bd-b629-45b5-b7ac-84cf4b879b7e
-@async monitor_lookup_times()
 
 # ╔═╡ 9a7e0df9-1465-47db-8fe7-ae7dd2b43525
 @async watchsteps()
@@ -3774,6 +3767,7 @@ const freqsortinds = sortperm(freq_weights, rev = true)
 # ╔═╡ 6981ab37-a73a-4481-8c61-c1d43016a4f9
 function eval_absurdle_guesses(possible_indices::AbstractVector)
 	k = possible_indices
+	haskey(absurdlelookup,k) && return absurdlelookup[k]
 	# str = sum(possible_indices) > 10 ? "$(nyt_valid_words[findfirst(possible_indices)])..." : nyt_valid_words[possible_indices]
 	# @info "On thread $(threadid()) evaluating guesses for possible words $str"
 	# if haskey(absurdlelookup, k)
@@ -3814,7 +3808,6 @@ function eval_absurdle_guesses_gamesteps(gamesteps)
 	answer_indices = get_possible_indices(gamesteps)
 	# @info "number of possible answers is $(count(answer_indices))"
 	put!(lookup_time_channel, (answer_indices, now()))
-	haskey(absurdlelookup, answer_indices) && return absurdlelookup[answer_indices]
 	eval_absurdle_guesses(answer_indices)
 end
 
@@ -6148,8 +6141,7 @@ version = "17.4.0+0"
 # ╠═65a991b8-9bed-4dfe-82b0-503f5fa0bd17
 # ╠═87f20038-b40a-4b5c-a879-17ebe1d5a6e9
 # ╠═268ab0b8-f1f5-4801-b3bb-d31df4016e2a
-# ╠═9ff464cb-b8eb-4bf7-8d0b-a840b7ce1d07
-# ╠═e33076f7-ded5-4f37-8906-4452cc3350af
+# ╠═805e96ec-c6db-4772-b1c0-5a13c96091d8
 # ╠═369b0e11-9412-4066-9373-7d2ba5d398c3
 # ╠═7858ad9a-2188-4859-a649-93bc35730036
 # ╠═95e874c1-b940-47ee-b4b5-950e64426962
@@ -6179,7 +6171,6 @@ version = "17.4.0+0"
 # ╠═ce65a46f-e92a-4a32-b8fd-c009c3654500
 # ╠═4b64fdcd-a7d0-4f83-b97e-8c1fe300fa6c
 # ╠═ee97c3c8-44ef-46f7-9b35-18a05fcd484a
-# ╠═bd1176bd-b629-45b5-b7ac-84cf4b879b7e
 # ╠═9a7e0df9-1465-47db-8fe7-ae7dd2b43525
 # ╟─916c36c8-6f0f-48da-89b6-b6d46f35c657
 # ╟─f3a11641-4fa4-4bc8-be9e-abf0c23d6c8c
