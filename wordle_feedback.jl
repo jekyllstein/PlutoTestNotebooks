@@ -1060,6 +1060,9 @@ function monitor_absurdle_results()
 	end
 end
 
+# ╔═╡ 4240eb52-a183-4297-9687-f8a03d5efe54
+
+
 # ╔═╡ 7e5668c4-db93-43d9-ab69-b40e4bd8e9ef
 begin 
 	const leaststeps = Channel{Int64}(1)
@@ -1163,6 +1166,11 @@ end
 
 # ╔═╡ 9a7e0df9-1465-47db-8fe7-ae7dd2b43525
 @async watchsteps()
+
+# ╔═╡ f82fac7c-dcca-4e1a-84ff-6f942696e08c
+md"""
+#### Absurdle Solver
+"""
 
 # ╔═╡ db7c2008-4dad-4903-bbbf-4e55e3872dd4
 function process_solutions(input)
@@ -3745,7 +3753,7 @@ function show_game_eval(wordlegame; sortname = :expected_value, minimum_win_prob
 	"""
 	elseif numanswers == 0
 		md"""
-		No possible answers remain.  The feedback might be incorrect
+		No possible answers remain.  The feedback might be incorrect.
 		"""
 	else
 		tbl = filter(a -> a.probability == 1, wordlegame_eval.ranked_answers)
@@ -4660,13 +4668,13 @@ begin
 
 			function applyFeedback(feedback, elems) {
 				console.log('Feedback is ' + feedback);
-				function addLabels(e, index) {
+				function addLabel(e, index) {
 					e.classList.remove('anim');
 					let letter = e.getAttribute("label");
 					span.querySelector('.Key-module_key__kchQI[data-key="'+letter+'"]').classList.add('feedback'+feedback[index]);
 					e.classList.add('feedback'+feedback[index]);
 				}
-				elems.map((e, index) => {setTimeout(() => {addLabels(e, index);}, index*200);});
+				elems.map((e, index) => {setTimeout(() => {addLabel(e, index);}, index*200);});
 				if (feedback.every(f => {return f == 2})) {
 					console.log('game won');
 					setTimeout(() => showMessage("game-won"), 1900);
@@ -6150,6 +6158,7 @@ version = "17.4.0+0"
 # ╠═369b0e11-9412-4066-9373-7d2ba5d398c3
 # ╠═7858ad9a-2188-4859-a649-93bc35730036
 # ╠═95e874c1-b940-47ee-b4b5-950e64426962
+# ╠═4240eb52-a183-4297-9687-f8a03d5efe54
 # ╠═6981ab37-a73a-4481-8c61-c1d43016a4f9
 # ╠═78bc8334-de61-4262-9bba-d80dc11602f8
 # ╠═51c88ba2-a30b-40f9-949d-7e5253b073e8
@@ -6177,6 +6186,7 @@ version = "17.4.0+0"
 # ╠═4b64fdcd-a7d0-4f83-b97e-8c1fe300fa6c
 # ╠═ee97c3c8-44ef-46f7-9b35-18a05fcd484a
 # ╠═9a7e0df9-1465-47db-8fe7-ae7dd2b43525
+# ╟─f82fac7c-dcca-4e1a-84ff-6f942696e08c
 # ╟─916c36c8-6f0f-48da-89b6-b6d46f35c657
 # ╟─f3a11641-4fa4-4bc8-be9e-abf0c23d6c8c
 # ╟─54fc1c84-57ca-4543-86a6-b0eebcfea5fc
